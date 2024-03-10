@@ -187,13 +187,4 @@ else {
 
 mysqli_close($conn);
 
-
-
-} else {
-    $res = [
-        "status" => 404,
-        "message" => "sno not found in POST request"
-    ];
-    echo json_encode($res);
-    return;
-}
+?>

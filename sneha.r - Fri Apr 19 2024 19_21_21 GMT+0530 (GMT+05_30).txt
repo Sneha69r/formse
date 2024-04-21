@@ -1,0 +1,1980 @@
+<?
+
+
+//devel
+
+
+function dltr_merge_custom_code_newdl_multiple_plaintiff($TBS, $case_id = 0, $params = [])
+{
+
+  global $TEMP_FOOTNOTE, $user, $mrs_format, $mrs_pointer_arr, $font_style;
+  $TEMP_FOOTNOTE = '';
+  $gender_return = $ci_gender =  [];
+  $qc_template = !empty($params['qc_template']) ? $params['qc_template'] : 0;
+  $pg_field_7_pointer_id = [];
+
+  if ($case_id > 0) {
+    //update this also by nachi
+    $total_rows = $temp_row = $tamp_row_pb = $temp_row_past = $plantiff_arr = $temp_dms = $total_dms = $temp_row_ij =  $total_row_ij = $total_row_exhibit =  $total_row_past = $temp_row_ma = $total_row_ma = $total_row_affd = $total_row_lel = $total_row_medi = $total_row_lic = $total_row_dam = $total_row_nei = $temp_row_ps = $total_row_ps = $temp_row_mil = $total_row_mil = $temp_medical_data = $total_medical_data = $temp_row_sur_plantiff = $total_row_sur_plantiff = $temp_row_out = $total_row_out = $total_plantiff_data = $plantiff_mapping_medi = $total_row_pov = [];
+    $text_cntr = 100;
+    $text_med_data = 1;
+    $f_cntr = 0;
+    $num = 0;
+    $medi_record_str = "";
+    $get_insurance_zip = db_query("SELECT i.i_address_zip FROM mdl_insurance i JOIN db_pfs_insurance_mapping m ON (m.dpim_i_id = i.i_id) WHERE m.dpim_pc_id =:case_id", [':case_id' => $case_id])->fetchField();
+    $get_muliple_plantiff = db_query("SELECT p.*,CONCAT(p.p_first_name,' ',IFNULL(p.p_last_name,'')) as 'full_name' FROM mdl_plantiff p INNER JOIN db_pfs_plantiff_mapping d ON (d.dppm_p_id = p.p_id) WHERE d.dppm_pc_id = :case_id ORDER BY FIELD(p.p_plantiff_type,'D','P'),p.p_age DESC", [':case_id' => $case_id]);  // for plantiff
+    $defendant_full_name = db_query("SELECT CONCAT(IFNULL(d.d_first_name,''),' ',IFNULL(d.d_last_name,'')) as defendant_full_name FROM mdl_defendant as d INNER JOIN db_pfs_defendant_mapping as m ON (d.d_id = m.dpdm_d_id) WHERE m.dpdm_pc_id = " . $case_id)->fetchField(); // defendant full name
+    $case_details = db_query("SELECT pc_entrust_case_id, pc_firm_id, pc_policy_limit,pc_future_recommendation FROM `mdl_pfs_case`  WHERE pc_id = :case_id", [':case_id' => $case_id])->fetchAssoc();
+    $firm_id = $case_details['pc_firm_id'];
+    $entrust_case_id = $case_details['pc_entrust_case_id'];
+    $api_data['case_id'] = $entrust_case_id;
+    // $allow_date_wise = empty($params['facility-wise']) ? 1 : 0;
+    // if($allow_date_wise == 1) {
+    //   $api_data['date-wise'] = 1;
+    // } 
+    if ($mrs_format == 1) {
+      $api_data['date-wise'] = $allow_date_wise = 1;
+    }
+    $plaintiff_count = $get_muliple_plantiff->rowCount();
+    if ($plaintiff_count > 0) { // MAIN PLANTIFF
+      $new_total_sum_foster = 0;
+      $total_plantiff_sum_of_damage_summ = 0;
+      while ($plantiff = $get_muliple_plantiff->fetchAssoc()) {  // MAIN PLANTIFF START
+        $extra_space = $ending_space = "";
+        $delete  = NULL;
+        $mileage_expense = 0;
+        $num++;
+        $min_maj_sal_array[strtoupper($plantiff['p_first_name'] .  " " . $plantiff['p_last_name'])] = ($plantiff['p_salutations'] ? $plantiff['p_salutations'] : "PL") . "||||" . ($plantiff['p_first_name'] ? $plantiff['p_first_name'] : "PL") . "||||" . ($plantiff['p_last_name'] ? $plantiff['p_last_name'] : "PL") . "||||" . ($plantiff['p_age'] ? $plantiff['p_age'] : "PL");
+        //add this line also
+        $ci_gender[] = $temp_medical_data['DLTR_CLSAL'] = $plantiff['p_salutations'];
+        $plantiff_arr[] = ['full_name' => $plantiff['full_name'], 'sal_lastname' => $plantiff['p_salutations'] . ' ' . $plantiff['p_last_name']];
+        $provider_name = [];
+        $plantiff_wise_provider_name = db_query("SELECT p_name,p_id FROM db_dltr_billing_provider WHERE p_case_id = :case_id AND p_ref_id = :plantiff_id AND p_deleted='0' ", [':case_id' => $case_id, ':plantiff_id' => $plantiff['p_id']])->fetchAll();
+
+        $sum_past_mileage = db_query("SELECT IF(SUM(d.ds_expenses_amount) > 1, SUM(d.ds_expenses_amount), 0) AS 'sum_past_mileage' FROM `mdl_damage_summary` d INNER JOIN db_pfs_damage_summary_mapping m ON (m.dpdsm_ds_id = d.ds_id) WHERE m.dpdsm_pc_id = :case_id AND d.ds_plaintiff = :plaintiff_id AND (d.`ds_summary_expenses` = :mileage_expense  OR d.`ds_summary_expenses` = :past_med_expense)", [':case_id' => $case_id, ':plaintiff_id' => $plantiff['p_id'], ':mileage_expense' => 'Mileage Expense', ':past_med_expense' => 'Past Medical Expenses'])->fetchField();
+
+        //watchdog('sum_past_mileage', "<pre>" . print_r($sum_past_mileage, true) . "</pre>");
+        foreach ($plantiff_wise_provider_name as $key => $value) {
+          $provider_name[] = $value->p_name;
+        }
+        $male_female = "";
+        if (!empty($plantiff['p_gender'])) {
+          if ($plantiff['p_gender'] == 'M') {
+            $gender_his_her = 'his';
+            $gender_he_she = 'he';
+            $gender_male_female = 'male';
+            $male_female = "Male";
+            $gender_him_her_self = 'himself';
+            $gender_he_she_cap = 'He';
+
+            if ($plantiff['p_age'] > 18) {
+              $gender_man_woman = 'man';
+            } else {
+              $gender_man_woman = 'boy';
+            }
+            $gender_him_her = 'him';
+            $gender_boy_girl = 'boy';
+          } elseif ($plantiff['p_gender'] == 'F') {
+            $gender_his_her = 'her';
+            $gender_he_she = 'she';
+            $gender_male_female = 'female';
+            $male_female = "Female";
+            $gender_him_her_self = 'herself';
+            $gender_he_she_cap = 'She';
+            if ($plantiff['p_age'] > 18) {
+              $gender_man_woman = 'woman';
+            } else {
+              $gender_man_woman = 'girl';
+            }
+
+            $gender_him_her = 'her';
+            $gender_boy_girl = 'girl';
+          }
+        }
+        // add this also
+        $ci_gender[] = $temp_medical_data['DLTR_HIS_HER'] = $gender_his_her;
+        if (!empty($plantiff['p_id'])) {
+          // for sum of trip merge code//
+          if ($plantiff['p_age'] >= 18) {
+            if (in_array($firm_id, [135, 4])) {  // FOR MARIO FIRM and demo law firm
+              $extra_space = "";
+              $ending_space = "\nMYTEMP_SPACE";
+              $delete = "MYTEMP_DELETE";
+            }
+            $del_par_ad[$num][] = ['FLAG' => [1]];
+            $temp_row['DLTR_CLSAL'] = $tamp_row_pb['DLTR_CLSAL'] = $temp_row_sur_plantiff['DLTR_CLSAL'] = $temp_row_ij['DLTR_CLSAL'] = $temp_row_ma['DLTR_CLSAL'] = $temp_row_ps['DLTR_CLSAL'] =  $temp_row_mil['DLTR_CLSAL'] = $temp_row_nei['DLTR_CLSAL'] = $temp_row_lic['DLTR_CLSAL'] = $temp_row_lel['DLTR_CLSAL'] = $temp_dms['DLTR_CLSAL'] = $temp_row_past['DLTR_CLSAL']  = $plantiff['p_salutations'];
+            $temp_row['DLTR_CLLNME'] = $temp_row_sur_plantiff['DLTR_CLLNME'] = $tamp_row_pb['DLTR_CLLNME']  = $temp_row_ij['DLTR_CLLNME'] = $temp_row_ma['DLTR_CLLNME'] = $temp_row_ps['DLTR_CLLNME'] =  $temp_row_mil['DLTR_CLLNME'] = $temp_row_lel['DLTR_CLLNME'] = $temp_row_lic['DLTR_CLLNME'] = $temp_row_nei['DLTR_CLLNME'] = $temp_dms['DLTR_CLLNME'] = $temp_row_past['DLTR_CLLNME']  = $plantiff['p_last_name'];
+          } else {
+
+            $del_par_ad[$num][] = "";
+            if (in_array($firm_id, [135, 4])) {  // FOR MARIO FIRM and demo law firm
+              $extra_space = "MYTEMP_SPACE\n";
+              $ending_space = "\nMYTEMP_SPACE";
+              $delete = "";
+            }
+            $temp_row['DLTR_CLSAL'] = $temp_row_ij['DLTR_CLSAL'] = $temp_row_sur_plantiff['DLTR_CLSAL'] = $temp_row_nei['DLTR_CLSAL'] =  $temp_row_lic['DLTR_CLSAL'] = $tamp_row_pb['DLTR_CLSAL'] = $temp_row_ma['DLTR_CLSAL'] = $temp_row_ps['DLTR_CLSAL'] =  $temp_row_mil['DLTR_CLSAL'] = $temp_row_lel['DLTR_CLSAL'] = $temp_dms['DLTR_CLSAL'] = $temp_row_past['DLTR_CLSAL'] =   $plantiff['p_first_name'];
+            $temp_row['DLTR_CLLNME'] = $tamp_row_pb['DLTR_CLLNME'] = $temp_row_ij['DLTR_CLLNME'] = $temp_row_lel['DLTR_CLLNME'] = $temp_row_ma['DLTR_CLLNME'] = $temp_row_sur_plantiff['DLTR_CLLNME'] = $temp_row_ps['DLTR_CLLNME'] =  $temp_row_mil['DLTR_CLLNME'] = $temp_row_lic['DLTR_CLLNME'] = $temp_row_nei['DLTR_CLLNME'] = $temp_dms['DLTR_CLLNME'] = $temp_row_past['DLTR_CLLNME']  = "";
+          }
+          $get_sum_trip = db_query("SELECT SUM(ad_total_trips) FROM mdl_amount_details AS ad INNER JOIN db_pfs_case_plaintiff_amount_details_mapping AS adm ON (ad.ad_id = adm.dpcpadm_ad_id) WHERE dpcpadm_pc_id = :case_id AND ad.ad_plaintiff = :plantiff_id", [':case_id' => $case_id, ':plantiff_id' => $plantiff['p_id']])->fetchField();
+          $get_sum_trip_word = str_replace(" ", "-", numberTowords($get_sum_trip));
+
+          // end sum of trip merge code
+          // get past medical expense
+          $get_past_medical_expense = db_query("SELECT dltr_smry_prv, dltr_smry_dot, dltr_smry_exp,DLTR_PAID_AMT, DLTR_BAL_AMT, DLTR_CLM_AMT FROM db_dltr_smry WHERE smry_plaintiff_id = :plantiff_id", [':plantiff_id' => $plantiff['p_id']]);
+
+          // end past medical expense
+
+          // get damage summary
+          $order_by = " ";
+          // if($block_data['table_name'] == "mdl_damage_summary"){
+
+          $squery = "SELECT GROUP_CONCAT(DISTINCT(a.sort_id)) FROM mdl_damage_summary as a JOIN db_pfs_damage_summary_mapping as b ON (a.ds_id = b.dpdsm_ds_id) WHERE b.dpdsm_pc_id = {$case_id}";
+
+          $sresult = db_query($squery)->fetchField();
+
+          //watchdog("m_kp", "<pre>" . print_r($squery, true) . "</pre>");
+
+          if ($sresult != 0 || $sresult != NULL) {
+            $order_by = " ORDER BY sort_id asc";
+          }
+
+          // }
+
+          $get_damage_summary = db_query("SELECT ds_summary_expenses, ds_expenses_amount FROM mdl_damage_summary WHERE ds_plaintiff = :plantiff_id {$order_by}", [':plantiff_id' => $plantiff['p_id']]);
+
+          // end damage summary
+          // $medi_record_str = !empty($plantiff['full_name'])
+          //   ? html_entity_decode(strtoupper($plantiff['full_name']))
+          //   : (NULL . "||##" . (!empty($male_female) ? $male_female : NULL) . "||##" . (!empty($plantiff['p_date_of_birth']) ? $plantiff['p_date_of_birth'] : NULL));
+          $medi_record_str = $plantiff['full_name'] . "||##" . $male_female . "||##" . $plantiff['p_date_of_birth'];
+          $temp_row['PLAINTIFF_NAME'] = $tamp_row_pb['PLAINTIFF_NAME'] = $temp_row_pov['PLAINTIFF_NAME'] = $temp_row_dam['PLAINTIFF_NAME'] = $temp_row_nei['PLAINTIFF_NAME'] = $temp_row_lic['PLAINTIFF_NAME'] = $temp_row_lel['PLAINTIFF_NAME'] = $temp_row_affd['PLAINTIFF_NAME'] = $temp_row_disb['PLAINTIFF_NAME'] = $temp_row_fut['PLAINTIFF_NAME'] = $temp_row_ps['PLAINTIFF_NAME'] = $temp_row_ma['PLAINTIFF_NAME'] = $temp_row_mil['PLAINTIFF_NAME'] = $temp_row_past['PLAINTIFF_NAME'] = $temp_dms['PLAINTIFF_NAME'] = $temp_row_medi['PLAINTIFF_NAME'] =  $temp_row_wa['PLAINTIFF_NAME'] = $temp_row_ij['PLAINTIFF_NAME'] = $fullname = !empty($plantiff['full_name']) ? html_entity_decode(strtoupper($plantiff['full_name'])) : NULL;
+          $temp_row_ps['DLTR_PAI_AND_SUFF'] = !empty($plantiff['p_pain_and_suffering']) ? $extra_space . html_entity_decode($plantiff['p_pain_and_suffering']) . $ending_space : $delete;
+          //add this also
+          $temp_row_ps['CLPRIN'] = $temp_row_sur_plantiff['CLPRIN'] = $temp_medical_data['CLRPRIN'] = !empty($plantiff['p_personal_injuries']) ? html_entity_decode($plantiff['p_personal_injuries']) : NULL;
+          $temp_row_ma['DLTR_MEN_ANG'] = !empty($plantiff['p_mental_anguish']) ? $extra_space . html_entity_decode($plantiff['p_mental_anguish']) . $ending_space : $delete;
+          $temp_row_ij['DLTR_INC_FOR_THE_INJ'] = !empty($plantiff['p_inconvenience_for_the_injury']) ? $extra_space . $plantiff['p_inconvenience_for_the_injury'] . $ending_space : $delete;
+          $temp_row['DLTR_CLFNME'] = $temp_row_mil['DLTR_CLFNME'] = $temp_row_ps['DLTR_CLFNME'] = $temp_row_affd['DLTR_CLFNME'] =  $temp_row_ma['DLTR_CLFNME'] = $temp_row_ij['DLTR_CLFNME'] = $plantiff['p_first_name'];
+          $temp_row_nei['DLTR_SUM_PAS_MIL'] = $temp_row_ma['DLTR_SUM_PAS_MIL'] = $temp_row_lic['DLTR_SUM_PAS_MIL'] = $temp_row_lel['DLTR_SUM_PAS_MIL'] = $temp_row_ij['DLTR_SUM_PAS_MIL'] = $temp_row_ps['DLTR_SUM_PAS_MIL'] = $sum_past_mileage;
+          // $temp_row['DLTR_CLSAL'] = $temp_row_ij['DLTR_CLSAL'] = $temp_row_ma['DLTR_CLSAL'] = $temp_row_ps['DLTR_CLSAL'] =  $temp_row_mil['DLTR_CLSAL'] =  $plantiff['p_salutations'];
+          $temp_row['DLTR_HIS_HER'] = $tamp_row_pb['DLTR_HIS_HER'] = $temp_row_sur_plantiff['DLTR_HIS_HER'] = $temp_row_lel['DLTR_HIS_HER'] = $temp_row_lic['DLTR_HIS_HER'] = $temp_row_ij['DLTR_HIS_HER'] = $temp_row_ma['DLTR_HIS_HER'] =  $temp_row_ps['DLTR_HIS_HER'] = $temp_row_mil['DLTR_HIS_HER'] = $gender_his_her;
+          $temp_row['DLTR_HIS_HER1'] = $temp_row_ps['DLTR_HIS_HER1'] = $temp_row_ma['DLTR_HIS_HER1'] =  $temp_row_ij['DLTR_HIS_HER1'] = $temp_row_mil['DLTR_HIS_HER1'] = ucfirst(strtolower($gender_his_her));
+          $temp_row_wa['DLTR_WAGES_INFO'] = $plantiff['p_wage_lost_information'];
+          $temp_row['DLTR_BAC'] = $tamp_row_pb['DLTR_BAC'] = !empty($plantiff['p_background']) ? $plantiff['p_background'] : NULL;
+          $temp_row_ij['DLTR_HE_SHE'] = $tamp_row_pb['DLTR_HE_SHE'] = $temp_row_sur_plantiff['DLTR_HE_SHE'] = $temp_row_lel['DLTR_HE_SHE'] = $temp_row_ps['DLTR_HE_SHE'] = $temp_row_ma['DLTR_HE_SHE'] = $temp_row['DLTR_HE_SHE'] = $temp_row_mil['DLTR_HE_SHE'] = $gender_he_she;
+          $temp_row_ij['DLTR_D_FULL_NAME'] = $defendant_full_name;
+          $temp_row['DLTR_CLPRIN'] = $tamp_row_pb['DLTR_CLPRIN'] = $temp_row_ij['DLTR_CLPRIN'] = !empty($plantiff['p_personal_injuries']) ? $plantiff['p_personal_injuries'] : NULL;
+          $temp_row['DLTR_INZIP'] = $get_insurance_zip;
+          $temp_row['DLTR_CLLAGE'] = $temp_row_affd['DLTR_AGE'] = $temp_row_lic['DLTR_AGE'] = $tamp_row_pb['DLTR_CLLAGE'] = $temp_row_ps['DLTR_CLLAGE'] = $plantiff['p_age'];
+          $temp_row['DLTR_MAN_WOMAN'] = $tamp_row_pb['DLTR_MAN_WOMAN'] = $temp_row_ps['DLTR_MAN_WOMAN'] = $temp_row_ij['DLTR_MAN_WOMAN'] = $gender_man_woman;
+          $temp_row['DLTR_BOY_GIRL'] = $gender_boy_girl;
+          $temp_row_ps['DLTR_BOY_GIRL'] = $gender_boy_girl;
+          $temp_row_lic['DLTR_LFE_EXPPRD'] = !empty($plantiff['p_life_expectancy_period']) ? $plantiff['p_life_expectancy_period'] : NULL;
+          $temp_row_lic['DLTR_MALE_FMALE'] = !empty($gender_male_female) ? $gender_male_female : NULL;
+          $temp_row_medi['DLTR_MALE_FEMALE'] = !empty($male_female) ? $male_female : NULL;
+          $temp_row['DLTR_HE_SHE1'] = $temp_row_ps['DLTR_HE_SHE1'] = $temp_row_ij['DLTR_HE_SHE1'] = $temp_row_ma['DLTR_HE_SHE1'] = $gender_he_she_cap;
+          $temp_row_medi['DLTR_CLDOB'] = !empty($plantiff['p_date_of_birth']) ? $plantiff['p_date_of_birth'] : NULL;
+          $temp_row_ps['DLTR_HIM_HER'] = !empty($gender_him_her) ? $gender_him_her : NULL;
+          $temp_row_mil['DLTR_TRIPS_TOTWRD'] = $get_sum_trip_word;
+          $temp_row_mil['DLTR_TRIPS_TOT'] = $get_sum_trip;
+          $temp_row_out['OUT_OF_POCKET'] =  $temp_row_mil['DLTR_OUT_PCKT'] =  $plantiff['p_out_of_pocket'];
+          $temp_row['DLTR_HIMSELF_HERSELF'] = $temp_row_ps['DLTR_HIMSELF_HERSELF'] = !empty($gender_him_her_self) ? $gender_him_her_self : NULL;
+          $temp_row_ij['DLTR_HIM_HER_SELF'] = !empty($gender_him_her_self) ? $gender_him_her_self : NULL;
+          $total_plantiff_data[] = trim(html_entity_decode(strtoupper($plantiff['full_name'])));
+          $dfs_row['DLTR_CLSAL'] =  $temp_row_fut['DLTR_CLSAL'] = $plantiff['p_salutations'];
+          $dfs_row['DLTR_CLLNME'] = $temp_row_fut['DLTR_CLLNME'] = $temp_row_affd['DLTR_CLLNME'] = $plantiff['p_last_name'];
+          $dfs_row['DLTR_CLFNME'] = $plantiff['p_first_name'];
+          $dfs_row['DLTR_DIV_POL_LIM'] = (!empty($case_details['pc_policy_limit']) && $case_details['pc_policy_limit'] > 0) ? ("$" . number_format(($case_details['pc_policy_limit'] / $plaintiff_count), 2)) : "";
+          $temp_row_wa['NUM'] = $num;
+          $temp_row['NUM'] = $num;
+          $tamp_row_pb['NUM'] = $num;
+          $temp_dms['NUM'] = $num;
+          $temp_row_ps['NUM'] = $num;
+          $temp_row_ma['NUM'] = $num;
+          $temp_row_disb['NUM'] = $num;
+          $temp_row_past['NUM'] = $num;
+          $temp_row_nei['NUM'] = $num;
+          $temp_row_fut['NUM'] = $num;
+          $temp_row_ij['NUM'] = $num;
+          $temp_row_mil['NUM'] = $num;
+          $temp_row_affd['NUM'] = $num;
+          $temp_row_lel['NUM'] = $num;
+          $temp_row_lic['NUM'] = $num;
+          $temp_row_dam['NUM'] = $num;
+          $temp_row_medi['NUM'] = $num;
+          $temp_row_pov['NUM'] = $num;
+
+
+          $total_row_out[] = $temp_row_out;
+          $dfs_total_rows[] = $dfs_row;
+          $total_exp_count = 0;
+          if ($get_past_medical_expense->rowCount() > 0) { // PAST MEDICAL EXPENSE
+            $past_medical = [];
+            $total_balance_amt = 0;
+            $total_claim_amt = 0;
+            $total_paid_amt = 0;
+            while ($past_med_exp = $get_past_medical_expense->fetchAssoc()) {
+              $past_med_exp['dltr_smry_exp'] = str_replace(",", "", $past_med_exp['dltr_smry_exp']);
+              $paid_amt = (float)$past_med_exp['DLTR_PAID_AMT'];
+              $balance_amt = (float)$past_med_exp['DLTR_BAL_AMT'];
+              $claim_amt = (float)$past_med_exp['DLTR_CLM_AMT'];
+              $amount = (float)$past_med_exp['dltr_smry_exp'];
+              // watchdog_uid_update("amount", $amount, 534);
+              $total_exp_count += $amount;
+              $total_paid_amt += $paid_amt;
+              $total_balance_amt += $balance_amt;
+              $total_claim_amt += $claim_amt;
+
+              $past_med_exp['dltr_smry_exp'] = $past_med_exp['dltr_smry_exp'];
+              // watchdog("past_med_exp", $past_med_exp['dltr_smry_exp']);
+              $past_med_exp['dltr_smry_exp'] = number_format($past_med_exp['dltr_smry_exp'], 2);
+              $past_med_exp['DLTR_PAID_AMT'] = number_format($past_med_exp['DLTR_PAID_AMT'], 2);
+              $past_med_exp['DLTR_BAL_AMT'] = number_format($past_med_exp['DLTR_BAL_AMT'], 2);
+              $past_med_exp['DLTR_CLM_AMT'] = number_format($past_med_exp['DLTR_CLM_AMT'], 2);
+              $past_medical[] = ['LEFT' => ucwords($past_med_exp['dltr_smry_prv']), 'MIDDLE' => $past_med_exp['dltr_smry_dot'], 'RIGHT' => $past_med_exp['dltr_smry_exp'], 'CENTER' => $past_med_exp['DLTR_PAID_AMT'], 'FORWARD' => $past_med_exp['DLTR_BAL_AMT'], 'BACKWORD' => $past_med_exp['DLTR_CLM_AMT']];
+            }
+          }  // PAST MEDICAL EXPENSE END
+
+          $providerIdOfCase = db_query("SELECT p_id, p_name FROM db_dltr_billing_provider WHERE p_ref_id = '" . $plantiff['p_id'] . "' AND p_case_id = $case_id AND p_deleted=0 ORDER BY p_order ASC");
+          $totalProviders = [];
+          if ($providerIdOfCase->rowCount() > 0) {
+            while ($p_data = $providerIdOfCase->fetchObject()) {
+              $purpose_of_visit_query = db_query("SELECT GROUP_CONCAT(bd_visit_purpose SEPARATOR ' + ') FROM db_dltr_billing_data WHERE bd_provider_id = $p_data->p_id AND bd_deleted=0")->fetchField();
+              $purpose_of_visit = !empty($purpose_of_visit_query) ? "(" . $purpose_of_visit_query . ")" : "";
+              $billingDatas = db_query("SELECT dltr_smry_prv,dltr_smry_exp FROM `db_dltr_smry` WHERE dltr_smry_prv = '" . $p_data->p_name . "' AND `smry_plaintiff_id` = '" . $plantiff['p_id'] . "'");
+              while ($billingData = $billingDatas->fetchObject()) {
+                $providerData = [
+                  "LEFT" => $billingData->dltr_smry_prv,
+                  "RIGHT" => $billingData->dltr_smry_exp,
+                  "DLTR_SMRY_POV" => $purpose_of_visit,
+                ];
+                $totalProviders[] = $providerData;
+              }
+            }
+          }
+
+
+          // mileage table  part start
+          $all_milage_data = dltr_get_milage_data($plantiff['p_id'], TRUE, FALSE, TRUE);
+          if (!empty($all_milage_data)) {
+            $m_cntr = 1;
+            $mileage_rows = [];
+            $m_cntr = 1;
+            $mlg_data = [];
+            $sum_rows = [];
+            $MLG_TOTAL_TRIPS = 0;
+            $MLG_TOTAL_EXPENSE = 0;
+            $MLG_TOTAL_MILEAGE = 0;
+            $total_exp = 0;
+            //watchdog("all_milage_data", "<pre>" . print_r($all_milage_data, TRUE) . "</pre>");
+            foreach ($all_milage_data as $patient_name => $milage_data) {
+              $no_of_rows = count($milage_data['rows']);
+              $num_count = count($milage_data['rows'][0]);
+
+              for ($i = 0; $i < count($milage_data['rows']); $i++) {
+                $milage_data['rows'][$i][0] = ucwords($milage_data['rows'][$i][0]);
+                if ($firm_id == 107) {
+                  $milage_data['rows'][$i][$num_count - 1] = empty($milage_data['rows'][$i][$num_count - 1]) ? '' : number_format($milage_data['rows'][$i][$num_count - 1], 2);
+                } else {
+                  $milage_data['rows'][$i][$num_count - 1] = "$" . number_format($milage_data['rows'][$i][$num_count - 1], 2);
+                }
+                //watchdog("milage_data", "<pre>" . print_r($milage_data, TRUE) . "</pre>");
+              }
+
+              $mileage_expense = $milage_data['sum'][$num_count - 1];
+              $milage_data['sum'][$num_count - 1] = "$" . number_format($milage_data['sum'][$num_count - 1], 2);
+
+              $rprops = array();
+              $rprops[$no_of_rows] = array_fill(0, count($milage_data['header']), array('bold' => TRUE));
+
+              for ($x = 0; $x <= $no_of_rows; $x++) {
+                $rprops[$x][0]['rowspan'] = 2;
+              }
+
+              $total_rows_data = array_merge($milage_data['rows'], array($milage_data['sum']));
+              $examination_data_xml = pfs_get_rom_xml_mulitple_plantiff($milage_data['header'], $total_rows_data, array('rows' => $rprops, 'style' => 'non_grid', 'header' => array(0 => array('rowspan' => 2))));
+            }
+            $examine = 'CUSTOM_TEXT_' . (++$text_cntr);
+            $mileage_rows = array_merge($mileage_rows, $milage_data['rows']);
+            foreach ($mileage_rows as $key => $value) {
+              $total_trips = $value[1];
+              $total_milage = $value[3];
+              $total_exp = end($value);
+
+              $MLG_TOTAL_TRIPS += $total_trips;
+              $MLG_TOTAL_MILEAGE += $total_milage;
+              $MLG_TOTAL_EXPENSE += $total_exp;
+              $mlg_data[] = [
+                'NAME' => $value[0],
+                'TRIPS' => $value[1],
+                'MILEAGE' => $value[2],
+                'TOTAL_MILEAGE' => $value[3],
+                'EXPENSE' => $value[4],
+              ];
+            }
+          }
+
+          // watchdog_uid_update("examination_data_exml = ",$examination_data_xml,526);
+          $xml_replace[$examine] = $examination_data_xml;
+          $temp_row_mil['TABLE'] = $examine;
+          $total_row_mil[] = $temp_row_mil;
+          // mileage part end 
+          if ($get_damage_summary->rowCount() > 0) { // DAMAGE SUMMARY
+
+            $damage_summary = $dama_summary_arr = [];
+            // $damage_summary_foster = $dama_summary_arr_fos = [];
+            $total_elem_dam = 0;
+            $total_dam_exp_count = 0;
+            $past_med_elem_dam = $fut_med_elem_dam = $past_fut_med_elem_dam = 0;
+            while ($dama_summ = $get_damage_summary->fetchAssoc()) {
+              $amount_damage = $expense_amount = $dama_summ['ds_expenses_amount'];
+
+              $temp_row_dam['DLTR_SUM_PAST_MED'] = "$" . number_format($past_med_elem_dam, 2);
+              if ($dama_summ['ds_summary_expenses'] == "Past Medical Expenses") {
+                $non_eco_exp = round_up_to_thousand($expense_amount);
+                $past_med_elem_dam =  $dama_summ['ds_expenses_amount'];
+                $total_elem_dam += $past_med_elem_dam;
+                $future_past_exp_suff = round_up_to_thousand($expense_amount);
+                $temp_row_dam['DLTR_SUM_PAST_MED'] = "$" . number_format($past_med_elem_dam, 2);
+              }
+              $temp_row_dam['DLTR_FUTURE_EXPEN'] = "$" . number_format($fut_med_elem_dam, 2);
+              if (strtolower($dama_summ['ds_summary_expenses']) == "future medical expenses") {
+                $fut_med_elem_dam =  $dama_summ['ds_expenses_amount'];
+                $total_elem_dam += $fut_med_elem_dam;
+                $temp_row_dam['DLTR_FUTURE_EXPEN'] = "$" . number_format($fut_med_elem_dam, 2);
+              }
+              if (strtolower($dama_summ['ds_summary_expenses']) == "past pain and suffering") {
+                $past_fut_med_elem_dam +=  $dama_summ['ds_expenses_amount'];
+                $total_elem_dam += $past_fut_med_elem_dam;
+              }
+              if (strtolower($dama_summ['ds_summary_expenses']) == "future pain and suffering") {
+                $past_fut_med_elem_dam +=  $dama_summ['ds_expenses_amount'];
+                $total_elem_dam += $past_fut_med_elem_dam;
+              }
+              $temp_row_dam['DLTR_PAST_FUT_PAIN_SUFF'] = "$" . number_format($past_fut_med_elem_dam, 2);
+              $temp_row_dam['DLTR_TOTAL_DAMAGES'] = "$" . number_format($total_elem_dam, 2);
+              if ($firm_id == 213) { //eduwards barne
+                if (in_array($dama_summ['ds_summary_expenses'], ['Mental Anguish', 'mental anguish', 'Pain and Suffering', 'pain and suffering', 'Inconvenience for the Injury', 'inconvenience for the injury', 'Inconvenience for the injury', 'Mileage Expense', 'mileage expense', 'Travel/Treatment Time', 'travel/treatment time', 'Disability', 'disability', 'Punitive Damage', 'punitive damage'])) {
+                  continue;
+                }
+              }
+              if (in_array($firm_id, [69, 240])) {
+                if (in_array($dama_summ['ds_summary_expenses'], ['Mental Anguish', 'mental anguish', 'Pain and Suffering', 'pain and suffering', 'Inconvenience for the Injury', 'inconvenience for the injury', 'Inconvenience for the injury'])) {
+                  continue;
+                }
+              }
+              if ($dama_summ['ds_summary_expenses'] == 'Mileage Expense') {
+                if ($expense_amount == '0.00') {
+                  $expense_amount = 'To be supplemented';
+                } else {
+                  $expense_amount = '$' . number_format($mileage_expense, 2);
+                  $amount_damage = $mileage_expense;
+                  //watchdog("mileage_expense =", $mileage_expense);
+                }
+              } else {
+                if (in_array($dama_summ['ds_summary_expenses'], ['Mental Anguish', 'mental anguish', 'Pain and Suffering', 'pain and suffering', 'Inconvenience for the Injury', 'inconvenience for the injury', 'Inconvenience for the injury']) && $params['UIM'] == 1) {
+                  $expense_amount = "";
+                } else {
+                  if ($expense_amount == '0.00') {
+                    $expense_amount = 'To be supplemented';
+                  } else {
+                    $expense_amount = '$' . number_format($expense_amount, 2);
+                  }
+                }
+              }
+
+
+              $dama_summary_arr[$dama_summ['ds_summary_expenses']] = $dama_summ['ds_expenses_amount'];
+              $total_dam_exp_count += $amount_damage;
+
+              $damage_summary[] = ['LEFT' => $dama_summ['ds_summary_expenses'], 'RIGHT' => $expense_amount];
+            }
+            if ($firm_id == 213) { //eduwards barne
+              $total_dam_exp_count += ($future_past_exp_suff * 2);
+              $future_past_exp_suff = "$" . number_format($future_past_exp_suff, 2);
+              $damage_summary[] = ['LEFT' => "Future Pain and Suffering", 'RIGHT' => $future_past_exp_suff];
+              $damage_summary[] = ['LEFT' => "Past Pain and Suffering", 'RIGHT' => $future_past_exp_suff];
+            }
+            if ($firm_id == 107 || $firm_id == 4) {
+              // Initialize variables to store sums
+              $past_medical_expense = 0;
+              $future_medical_expense = 0;
+              $travel_treatment_expense = 0;
+              $physical_mental_pain_suffering = 0;
+
+              // Loop through the damage summary to calculate sums
+              foreach ($damage_summary as $item) {
+                switch ($item['LEFT']) {
+                  case 'Past Medical Expenses':
+                    $past_medical_expense += str_replace(['$', ','], '', $item['RIGHT']);
+                    break;
+                  case 'Future Medical Expenses':
+                    $future_medical_expense += str_replace(['$', ','], '', $item['RIGHT']);
+                    break;
+                  case 'Travel/Treatment Time':
+                    $travel_treatment_expense += str_replace(['$', ','], '', $item['RIGHT']);
+                    break;
+                  case 'Pain and Suffering':
+                  case 'Mental Anguish':
+                  case 'Inconvenience for the Injury':
+                    $physical_mental_pain_suffering += str_replace(['$', ','], '', $item['RIGHT']);
+                    break;
+                }
+              }
+
+              // Clear the existing damage summary
+              $damage_summary = [];
+              $total_dam_exp_count = 0;
+              // Add the grouped and calculated expenses to the damage summary
+              if ($past_medical_expense > 0) {
+                $damage_summary[] = ['LEFT' => 'Incurred Medical Expenses', 'RIGHT' => '$' . number_format($past_medical_expense, 2)];
+                $total_dam_exp_count += $past_medical_expense;
+              } else {
+                $damage_summary[] = ['LEFT' => 'Incurred Medical Expenses', 'RIGHT' => 'To be supplemented'];
+              }
+
+              if ($future_medical_expense > 0) {
+                $damage_summary[] = ['LEFT' => 'Future Medical Expenses', 'RIGHT' => '$' . number_format($future_medical_expense, 2)];
+                $total_dam_exp_count += $future_medical_expense;
+              } else {
+                $damage_summary[] = ['LEFT' => 'Future Medical Expenses', 'RIGHT' => 'To be supplemented'];
+              }
+
+              if ($travel_treatment_expense > 0) {
+                $damage_summary[] = ['LEFT' => 'Travel and Treatment Expenses', 'RIGHT' => '$' . number_format($travel_treatment_expense, 2)];
+                $total_dam_exp_count += $travel_treatment_expense;
+              } else {
+                $damage_summary[] = ['LEFT' => 'Travel and Treatment Expenses', 'RIGHT' => 'To be supplemented'];
+              }
+              if ($physical_mental_pain_suffering > 0) {
+                $damage_summary[] = ['LEFT' => 'Physical and Mental Pain and Suffering', 'RIGHT' => '$' . number_format($physical_mental_pain_suffering, 2)];
+                $total_dam_exp_count += $physical_mental_pain_suffering;
+              } else {
+                $damage_summary[] = ['LEFT' => 'Physical and Mental Pain and Suffering', 'RIGHT' => 'To be supplemented'];
+              }
+            } else if ($user->uid == 537) { //lowe
+              $past_medical_expenses = 0;
+              $total_sum_of_dm = 0;
+              $past_medical_expenses = 0;
+              foreach ($damage_summary as $item) {
+                if (strtolower($item['LEFT']) == 'past medical expenses') {
+                  $past_medical_expenses = str_replace(['$', ','], '', $item['RIGHT']);
+                  break;
+                }
+              }
+              foreach ($damage_summary as $key => $item) {
+                if (strtolower($item['LEFT']) == 'mental anguish') {
+                  $dam_mental_ang = $past_medical_expenses * 3;
+                  $total_sum_of_dm += $dam_mental_ang;
+                  $damage_summary[$key]['RIGHT'] = "$" . number_format($dam_mental_ang, 2);
+                } elseif (strtolower($item['LEFT']) == 'inconvenience for the injury') {
+                  $dam_incon_inj = $past_medical_expenses * 0.75;
+                  $total_sum_of_dm += $dam_incon_inj;
+                  $damage_summary[$key]['RIGHT'] = "$" . number_format($dam_incon_inj, 2);
+                } elseif (strtolower($item['LEFT']) == 'pain and suffering') {
+                  $dam_pain_suff = $past_medical_expenses * 5;
+                  $total_sum_of_dm += $dam_pain_suff;
+                  $damage_summary[$key]['RIGHT'] = "$" . number_format($dam_pain_suff, 2);
+                } else {
+                  $total_sum_of_dm += str_replace(['$', ','], '', $item['RIGHT']);
+                }
+              }
+              $total_plantiff_sum_of_damage_summ += $total_sum_of_dm;
+            }
+            if (in_array($firm_id, [69, 240])) {
+              $expense_foster = "$" . number_format($non_eco_exp, 2);
+              $damage_summary[] = ['LEFT' => "Non-Economic Damage", 'RIGHT' => $expense_foster];
+              $total_dam_exp_count = $total_dam_exp_count + $non_eco_exp;
+              $new_total_sum_foster = $new_total_sum_foster + $total_dam_exp_count;
+            }
+          } // DAMAGE SUMMARY END
+          $temp_row['DLTR_MEDEXP_TOT'] = $temp_row_medi['DLTR_MEDEXP_TOT'] = number_format($total_exp_count, 2);
+          $tamp_row_pb['DLTR_MEDEXP_TOT'] = $temp_row_pov['DLTR_MEDEXP_TOT'] = number_format($total_exp_count, 2); // for past medical expenses
+          $tamp_row_pb['DLTR_PAID_TOT'] = number_format($total_paid_amt, 2); // for past medical expenses
+          $tamp_row_pb['DLTR_BAL_TOT'] = number_format($total_balance_amt, 2); // for past medical expenses
+          $tamp_row_pb['DLTR_CLM_TOT'] = number_format($total_claim_amt, 2);
+          $temp_row_ps['DLTR_PAI_AND_SUFF_AMT'] = number_format($dama_summary_arr['Pain and Suffering'], 2);  // for pain and suffering amount
+          $temp_row_fut['FUTURE_MED'] = number_format($dama_summary_arr['Future Medical Expenses'], 2);  // for Future Medical Expenses amount
+          $temp_row_ma['DLTR_MEN_ANG_AMT'] = number_format($dama_summary_arr['Mental Anguish'], 2); // for mental anguish
+          $temp_row_disb['DLTR_DISB_AMT'] = number_format($dama_summary_arr['Disability'], 2); // for Disability
+          $temp_row_ij['DLTR_INJ_AMT'] = number_format($dama_summary_arr['Inconvenience for the Injury'], 2); // for inconvenience for the injury
+          $temp_dms['DLTR_D_SUM_TOTAL'] = number_format($total_dam_exp_count, 2); // for damage summary total amount
+          $temp_dms['DLTR_D_SUM_TOTAL_RUP'] =  round_up_to_thousand($total_dam_exp_count); // for damage summary total amount
+
+          // watchdog_uid_update("temp_row_past", $total_exp_count, 534);
+          $temp_row_past['DLTR_MEDEXP_TOT'] = number_format($total_exp_count, 2);  // for medical expense total amount
+          //add this three merge code for the bottom merge cod eof table
+          $temp_row_mil['MLG_TOTAL_TRIPS'] = $MLG_TOTAL_TRIPS;
+          $temp_row_mil['MLG_SUM_MILEAGE'] = number_format($MLG_TOTAL_MILEAGE, 2);
+          $temp_row_mil['MLG_SUM_EXPENSE'] = '$' . number_format($MLG_TOTAL_EXPENSE, 2);
+          $total_dms[] = $temp_dms;  // for total array of damage summary
+          $total_rows[] = $temp_row; // FOR TOTAL ARRAY OF MULTIPLE PLAINTIFF
+          $total_rows_pb[] = $tamp_row_pb;
+          $total_row_mil[] = $temp_row_mil;
+
+          $total_row_wa[] = $temp_row_wa; // for total wage lost information 
+          $total_row_past[] = $temp_row_past; // for total array of damage summary
+          $total_row_ps[] = $temp_row_ps; // for total array of pain and suffering
+          $total_row_ma[] = $temp_row_ma; // for total array of mental anguish
+          $total_row_disb[] = $temp_row_disb; // for total array of disability
+          $total_row_affd[] = $temp_row_affd;
+          $total_row_nei[] = $temp_row_nei; // Nature and Extent of Injuries (NEI)
+          $total_row_ij[] = $temp_row_ij; // for total array of inconvenience injury
+          $total_row_fut[] = $temp_row_fut; // for total array of future medical expense 
+          $total_row_lel[] = $temp_row_lel; //  Limitations on the enjoyment of life (LEL)
+          $total_row_lic[] = $temp_row_lic; //   Likelihood of Injuries Continuing (LIC)
+          $total_row_dam[] = $temp_row_dam;
+          $total_row_pov[] = $temp_row_pov;
+          $plantiff_mapping_medi[strtoupper($plantiff['full_name'])] = $medi_record_str; // Medical Record
+          $past_medical_incre[$num][] = $past_medical;
+          $purpose_of_visit_incre[$num][] = $totalProviders;
+          $damage_summary_incre[$num][] = $damage_summary;
+          $milage_table_incre[$num][] = $mlg_data;
+
+          if (!empty($plantiff['p_wage_lost_information'])) {
+            $delete_wag[] = $plantiff['p_wage_lost_information'];
+          }
+          //   $damage_summary_incre_fost[$num][] = $damage_summary_foster;
+          // $total_medical_data['p_first_name'-'p_last_name'] =$temp_medical_data;
+          //add this  line of code also by nachi
+          $total_medical_data[$fullname] = $temp_medical_data;
+          $total_row_sur_plantiff[trim($fullname)] = $temp_row_sur_plantiff;
+         // watchdog("temp_row_dam", "<pre>" . print_r($temp_row_dam, TRUE) . "</pre>");
+          // MEDICAL BILLING SUMMARY PART
+        }
+      }
+      //watchdog_uid_update("future_expense = ",$expense_table,526);
+      //watchdog("total sum", $new_total_sum_foster);
+      //watchdog("plantiff_mapping_medi", "<pre>" . print_r($plantiff_mapping_medi, TRUE) . "</pre>");
+      // END MILEAGE DATA TABLE
+      $TBS->MergeBlock('PB', $total_rows_pb);
+      // for past medical expense
+      // watchdog_uid_update("past_med_inde = ",$past_medical_incre,526);
+      $TBS->MergeBlock('DLTI', $total_row_past);
+      foreach ($past_medical_incre as $counter => $value) {
+        foreach ($value as $merge_data) {
+          $TBS->MergeBlock('DLTR_PAST_MED_' . $counter, $merge_data);
+        }
+      }
+      // for wage lost information 
+      // $TBS->MergeBlock('WAG', $total_row_wa);
+      if (empty($delete_wag)) { //wage loss information
+        $TBS->Source = str_replace('[MULTI_WAG_DEL]', "[onload;magnet=tbs:p]", $TBS->Source);
+      } else {
+        foreach ($total_row_wa as $data_key => $data_value) {
+          if (empty($data_value['DLTR_WAGES_INFO'])) {
+            unset($total_row_wa[$data_key]);
+          }
+        }
+        if (!empty($total_row_wa)) {
+          $TBS->MergeBlock('WAG', $total_row_wa);
+          $TBS->Source = str_replace('[MULTI_WAG_DEL]', "", $TBS->Source);
+        } else {
+          $TBS->Source = str_replace('[MULTI_WAG_DEL]', "[onload;magnet=tbs:p]", $TBS->Source);
+        }
+      }
+      // FOR DAMAGE SUMMARY
+
+      $TBS->MergeBlock('DMS', $total_dms);
+      // watchdog_uid_update("damage_summary_ince = ",$damage_summary_incre,526);
+      foreach ($damage_summary_incre as $counter => $value) {
+        foreach ($value as $merge_data) {
+          // watchdog_uid_update("past_med_exp_merge = ",$merge_data,526);
+          $TBS->MergeBlock('DMS_EXP_' . $counter, $merge_data);
+        }
+      }
+      $TBS->MergeBlock('DLTR2', [["DLTR_SUM_TOT_DAMS_L" => number_format($total_plantiff_sum_of_damage_summ, 2)]]);
+      $TBS->MergeBlock('DLTR3', [["DLTR_SUM_TOT_DAMS_L_RUP" => round_up_to_thousand($total_plantiff_sum_of_damage_summ)]]);
+      //   if((in_array($firm_id, [69, 240]))){
+      //     foreach($damage_summary_incre_fost as $counter => $value){
+      //         foreach($value as $merge_data){
+      //           // watchdog_uid_update("past_med_exp_merge = ",$merge_data,526);
+      //           $TBS->MergeBlock('DMS_EXP_'.$counter,$merge_data);
+      //         }
+      //       }
+      //   }
+      // MAIN PLANTIFF LOOP END
+      // DAMAGE SUMMARY END
+
+      $TBS->MergeBlock('MIL', $total_row_mil); // for mileage
+      foreach ($milage_table_incre as $counter => $value) {
+        foreach ($value as $merge_data) {
+          $TBS->MergeBlock('DLTR_MILAGE_TAB_' . $counter, $merge_data);
+        }
+      }
+
+      //watchdog_uid_update("total_rows = ", $total_rows, 526);
+      //watchdog("total_row_nei", "<pre>" . print_r($total_row_nei, true) . "</pre>");
+      $TBS->MergeBlock('MULTI', $total_rows); // for plantiff
+      // $TBS->MergeBlock('MIL', $total_row_mil); // for mileage
+      $TBS->MergeBlock('PS', $total_row_ps);  // for pain and suffering
+      $TBS->MergeBlock('MA', $total_row_ma);  // for Mental and anguish
+      $TBS->MergeBlock('DISB', $total_row_disb);  // for Disability
+      $TBS->MergeBlock('INJ', $total_row_ij);  // for inconvenience for injury
+      $TBS->MergeBlock('FUT', $total_row_fut);  // for future medical expense
+      $TBS->MergeBlock('DS', $dfs_total_rows); // for demand for settlement (divided policy limit)
+      $TBS->MergeBlock('OUT_POCK', $total_row_out);
+      $TBS->MergeBlock('NEI', $total_row_nei); // Nature and Extent of Injuries (NEI)
+      $TBS->MergeBlock('LEL', $total_row_lel); // Limitations on the enjoyment of life (LEL)
+      $TBS->MergeBlock('LIC', $total_row_lic); // Limitations on the enjoyment of life (LIC)
+      $TBS->MergeBlock('DAM', $total_row_dam); // Elements of Damage
+      $TBS->MergeBlock('POV', $total_row_pov); // purpose of visit
+      foreach ($purpose_of_visit_incre as $counter => $value) {
+        foreach ($value as $merge_data) {
+          $TBS->MergeBlock('DLTR_POV_' . $counter, $merge_data);
+        }
+      }
+      // $TBS->MergeBlock('MEDI', $total_row_medi); // Elements of Damage
+      // if (!empty($total_row_dam)) {
+      //   foreach ($total_row_dam as $key => $row_dam) {
+      //     if ($row_dam['DLTR_TOTAL_DAMAGES'] < 1) {
+      //       unset($total_row_dam[$key]);
+      //     }
+      //   }
+      //   watchdog("total_row_dam", "<pre>" . print_r($total_row_dam, true) . "</pre>");
+      //   $TBS->MergeBlock('DAM', $total_row_dam); // Elements of Damage
+      // }
+      //affidivit
+      if (!empty($total_row_affd)) {
+        foreach ($total_row_affd as $key => $affd_data) {
+          if ($affd_data['DLTR_AGE'] < 18) {
+            unset($total_row_affd[$key]);
+            //watchdog("total_row_affd3", "<pre>" . print_r($affd_data['DLTR_AGE'], true) . "</pre>");
+          }
+        }
+        //watchdog("total_row_affd1", "<pre>" . print_r($total_row_affd, true) . "</pre>");
+        $TBS->MergeBlock('AFFD', $total_row_affd);
+      }
+    }
+    // MAIN PLANTIFF END
+    // medical billing process
+    try {  // url hit
+      $ch = curl_init();
+      $url = 'http://mrs.neuralit.com/mrsys/api/getMedicalSummaryPw';
+      //echo $url;
+      // watchdog_uid_update("url_ankit =",$url,526);
+      curl_setopt($ch, CURLOPT_URL, $url);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+      curl_setopt($ch, CURLOPT_POST, 1);
+      curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($api_data));
+      curl_setopt($ch, CURLOPT_FAILONERROR, 1);
+      curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+      $result = curl_exec($ch);
+      if ($result === false) {
+        echo "Curl Error - " . curl_error($ch);
+      }
+      $result_data = json_decode($result, TRUE);
+      curl_close($ch);
+    } catch (Exception $e) {
+      echo "Error - " . $e->getMessage();
+    }
+
+    // Physical Examination bullet point xml.
+    $phy_bullet_xml = '';
+    $main_index = strpos($TBS->Source, 'DIAGNOSIS_TEXT');
+    if ($main_index !== FALSE) {
+      $start_index = strpos($TBS->Source, '<w:p', $main_index);
+      if ($start_index !== FALSE) {
+        $last_index = strpos($TBS->Source, '</w:p>', $start_index);
+        if ($last_index !== FALSE) {
+          $para_xml = substr($TBS->Source, $start_index, $last_index - $start_index + 6);
+          preg_match_all('/\<w\:t\>(.*?)\\<\/w\:t\>/', $para_xml, $match_data);
+          $phy_bullet_xml = str_replace($match_data[0][0], '<w:t>[BULLET_TEXT]</w:t>', $para_xml);
+        }
+      }
+    }
+    // END
+    // watchdog_uid_update("result_plantiff = ",$result_data,526);
+    $temp_row_exhibit = $total_row_exhibit = $temp_row_feature = $total_row_future = $temp_row_med = $temp_row_sur = $total_row_sur =   $total_rec_medi = $total_row_med = $total_row_future_table = $temp_row_future_table =  [];
+    $dignosis_data = [];
+    $num_med = 0;
+    $itct_data =  [];
+    $pt_cntr = 0;
+    $ci_gender_plantiff = $ci_gender[0];
+
+
+    // watchdog_uid_update("plantiff_arr",$plantiff_arr,526);
+    // foreach($plantiff_arr as $plantiff_data1){
+    $diagnosis_with = "";
+    //  watchdog_uid_update("plantiff_data = ",$plantiff_data,526);
+    if (!empty($result_data)) {
+
+      foreach ($total_plantiff_data as $plantiff_name) {
+        if (count($result_data['fpt_data'][$plantiff_name]) > 0) {
+          $plantiff_arr_rearrang[$plantiff_name] = $result_data['fpt_data'][$plantiff_name];
+        }
+      }
+      //watchdog("plantiff_arr_rearrang", "<pre>" . print_r($plantiff_arr_rearrang, true) . "</pre>");
+      $daig_injury = [];
+      global $_FOOTNOTE_DATA_NEWDL;
+      $_FOOTNOTE_DATA_NEWDL = array();
+      if (!empty($result_data['fpt_data'])) {
+        // Fetch Footnote counter.
+        $footnote_cntr = 1;
+        $start_index = strpos($TBS->Source, 'ITCT[MED.NUM].DATE');
+        if ($start_index !== FALSE) {
+          $next_index = strpos($TBS->Source, '<w:footnoteReference', $start_index);
+          if ($next_index !== FALSE) {
+            $last_index = strpos($TBS->Source, '/>', $next_index);
+            $final_index = $last_index - $next_index + 2;
+            $temp_text = substr($TBS->Source, $next_index, $final_index);
+            $footnote_cntr = (int) filter_var($temp_text, FILTER_SANITIZE_NUMBER_INT);
+          }
+        }
+        $footnote_cntr = intval($footnote_cntr);
+        if (empty($footnote_cntr)) {
+          $footnote_cntr = 1;
+        }
+        $fctr = $footnote_cntr;
+        $start_index = strpos($TBS->Source, 'ITCT[MED.NUM].DATE');
+
+        if ($start_index !== FALSE) {
+          $next_index = strpos($TBS->Source, '<w:footnoteReference', $start_index);
+          if ($next_index !== FALSE) {
+            $last_index = strpos($TBS->Source, '/>', $next_index);
+            $final_index = $last_index - $next_index + 2;
+            $TBS->Source = substr_replace($TBS->Source, '<w:footnoteReference w:id="[ITCT[MED.NUM].FCTR]" />', $next_index, $final_index);
+          }
+        }
+
+        $note_data =  $diagnosis_data = $sum_futr_arr =  [];
+        $DLTR_COLLISON_REPORT = [];
+        $single_plantiff = 0;
+        $itct = 0;
+        //watchdog_uid_update("result_data = ", $result_data['fpt_data'], 526);
+        foreach ($result_data['fpt_data'] as $plantiff_name => $plantiff_data) {
+          $temp_rec_medi = [];
+          $sum_amt_futr = 0;
+          // for loop for medical billing summary data
+          $medi_rec_str = explode("||##", $plantiff_mapping_medi[$plantiff_name]);
+          if (!empty($medi_rec_str[0])) {
+            $temp_rec_medi['PLAINTIFF_NAME'] = !empty($medi_rec_str[0]) ? html_entity_decode(strtoupper($medi_rec_str[0])) : NULL;
+            $temp_rec_medi['DLTR_MALE_FEMALE'] = !empty($medi_rec_str[1]) ? $medi_rec_str[1] : NULL;
+            $temp_rec_medi['DLTR_CLDOB'] = !empty($medi_rec_str[2]) ? $medi_rec_str[2] : NULL;
+          }
+          $mod_plantiff_name = str_replace(["Mr. ", "Ms. "], "", $plantiff_name);  // as per niveditha maam reqirement do not show salutations
+          $reverse = explode(" ", $mod_plantiff_name);
+          $reverse_plantiff = $reverse[1] . " " . $reverse[0];
+          $last_name = $reverse[1];
+
+          $expense_note = [];
+          $fut_estimate = $medical_billing_record = $med_record = $other_est = 0;
+          $collison_report = "";
+          if (!empty($result_data['all_section'])) {  // for exhibit
+            $exhbit = [];
+            $existing_exhibit = [];
+            $arr = [$mod_plantiff_name, $plantiff_name, $reverse_plantiff, "-", " - "];
+            foreach ($result_data['all_section'] as $key => $val) {
+
+              $exhibit_str = str_replace($arr, "", $val); // as per niveditha maam requirement
+              if ((strpos($val, 'Collision Report') !== FALSE)) {
+                $collison_report = $val;
+              }
+
+              $other_exhibit_str = $medical_record = $other_est_str = $future_estimate =  "";
+              if ((strpos($val, $mod_plantiff_name) !== FALSE) || (strpos($val, $reverse_plantiff) !== FALSE)) {
+                if (strpos($exhibit_str, "Medical Records of") !== FALSE) {
+                  $medical_record = $exhibit_str;
+                  $exhbit[] = ['LIST' => $medical_record];
+                }
+              } else {
+                if ($single_plantiff < 1) {
+                  if (strpos($exhibit_str, "Medical Records of") !== FALSE) {
+                  } else if (strpos($exhibit_str, "Collision Report") !== FALSE) {
+                  } else if (strpos($exhibit_str, "Future Medical Estimate") !== FALSE) {
+                    if ($fut_estimate < 1) {
+                      $future_estimate = 'Future Medical Estimate';
+                      $other_exhibit[] = ['OTHER' =>  !empty($future_estimate) ? $future_estimate : NULL];
+                    }
+                    $fut_estimate = 1;
+                  } else if (strpos($exhibit_str, "Medical Billing Records") !== FALSE) {
+                    if ($med_record < 1) {
+                      $other_exhibit_str = $exhibit_str;
+                      $other_exhibit[] = ['OTHER' =>  !empty($other_exhibit_str) ? $other_exhibit_str : NULL];
+                    }
+                    $med_record = 1;
+                  } else {
+                    $other_exhibit[] = ['OTHER' =>  !empty($exhibit_str) ? $exhibit_str : NULL];
+                  }
+                }
+              }
+            }
+            // for collison report
+            if (!empty($collison_report)) {
+              $DLTR_COLLISON_REPORT[] = ['COL' => $collison_report];
+            }
+            // $DLTR_COLLISON_REPORT = [];
+          }
+          // watchdog_uid_update("other_Exhibit = ",$existing_exhibit,526);
+          $temp_row_exhibit['PLAINTIFF_NAME'] = strtoupper($mod_plantiff_name);
+          $temp_row_feature['PLAINTIFF_NAME']  = strtoupper($mod_plantiff_name);
+          $num_med++;
+          //this line should be add
+          $total = $total_medical_data[$plantiff_name];
+          $plantiff_sur = $total_row_sur_plantiff[$plantiff_name];
+          //watchdog("total_row_sur_plantiff", "<pre>" . print_r($total_row_sur_plantiff, TRUE) . "</pre>");
+          //watchdog("plantiff_name", "<pre>" . print_r($plantiff_name, TRUE) . "</pre>");
+          $temp_row_med['PLAINTIFF_NAME'] = $temp_row_sur['PLAINTIFF_NAME'] = $temp_row_future_table['PLAINTIFF_NAME'] = strtoupper($mod_plantiff_name);
+          $temp_row_med['DLTR_CLSAL'] = $ci_gender_plantiff;
+          $temp_row_med['DLTR_CLLNME'] = ucfirst(strtolower($last_name));
+          $temp_row_med['DLTR_HIS_HER'] = $total['DLTR_HIS_HER'];
+          $temp_row_med['CLPRIN'] = $total['CLRPRIN'];
+          $temp_row_sur['DLTR_CLSAL'] = $temp_row_future_table['DLTR_CLSAL'] = $plantiff_sur['DLTR_CLSAL'];
+          $temp_row_sur['DLTR_CLLNME'] = $temp_row_future_table['DLTR_CLLNME'] = $plantiff_sur['DLTR_CLLNME'];
+          $temp_row_sur['DLTR_HIS_HER'] = $temp_row_future_table['DLTR_HIS_HER'] = $plantiff_sur['DLTR_HIS_HER'];
+          $temp_row_sur['DLTR_HE_SHE'] = $plantiff_sur['DLTR_HE_SHE'];
+          $temp_row_sur['CLPRIN'] = $plantiff_sur['CLPRIN'];
+          //upto this it required to add
+          $temp_row_feature['NUM'] = $num_med;
+          $temp_row_exhibit['NUM'] = $num_med;
+          $temp_row_med['NUM'] = $num_med;
+          $temp_row_sur['NUM'] = $num_med;
+          $temp_row_future_table['NUM'] = $num_med;
+          $phy_para_xml = "";
+          $total_future = 0;
+          $date_cntr = 0;
+          $procd_note_data_arr = [];
+          $proc_data_sur = [];
+          $future_medical_exp_table = [];
+          $cal_sum_futr_arr = [];
+          //watchdog("temp_row_med13", "<pre>" . print_r($temp_row_med, TRUE) . "</pre>");
+          //if($plantiff_name === $plantiff_data1['full_name']){
+          //watchdog("plantiff_data", "<pre>" . print_r($plantiff_data, TRUE) . "</pre>");
+          foreach ($plantiff_data as $date_of_treatment => $date_arr) {
+            ++$pt_cntr;
+            $dateCNTRTEMP = $med_proj_cntr = 0;
+            $temp_file_path = "";
+            //watchdog("date_arr", "<pre>" . print_r($date_arr, TRUE) . "</pre>");
+            foreach ($date_arr as $date => $pointer_data) {
+              $secondory_arr = [];
+              $psycho_arr = [];
+              $total_mcp = 0;
+              ++$itct;
+              $image_path = '';
+              $xml_text = "";
+              $xml_diagnosis_text = "";
+              $xml_psycho_table = "";
+              $xml_table = "";
+              $xml_psycho_note = "";
+              $xml_btm_text = "";
+              $xml_psycho_note_text = 'PSYCHO_NOTE_TEXT' . (++$text_cntr);
+              $xml_psycho_text = 'TABLE_PSYCHO_TEXT' . (++$text_cntr);
+              $xml_diag_rep_text = 'DIAG_CUSTOM_TEXT_' . (++$text_cntr);
+              $xml_rep_text = 'CUSTOM_TEXT_A_' . (++$text_cntr);
+              $xml_table_text = 'TABLE_TEXT' . (++$text_cntr);
+              $xml_injury_desc_text = 'INJURY_DESC_NOTE_TEXT' . (++$text_cntr);
+
+              $xml_rep_btm = 'CUSTOM_TEXT_B_' . (++$text_cntr);
+              ++$incr;
+              if ($date_cntr == 0 && !empty($medi_rec_str[0])) {
+                $temp_rec_medi['FIRST_TREAT_DATE'] = $date;
+              }
+              if (!empty($pointer_data['visit note'])) {  // visit note
+                $visit_note_data = array_filter(array_column($pointer_data['visit note'], 'note'));
+                $pointer_ids_visit = array_filter(array_column($pointer_data['visit note'], 'pointer_id'));
+                $pointer_ids_visit_string = implode(',', $pointer_ids_visit);
+                if (!empty($visit_note_data)) {
+                  $gender_return = array_merge($gender_return, check_gender_grammar($ci_gender_plantiff, implode("\n\r", $visit_note_data)));
+                  $visit_note = implode("\n\r", $visit_note_data); //. "\n\rMYTEMP_SPACE";
+                  $visit_note_params['line_spacing'] = 1;
+                  $visit_note_params['qc_template'] = $qc_template;
+                  $visit_note_params['pointer_id'] = $pointer_ids_visit_string . '_' . $qc_revieweds_visit_string;
+                  if ($firm_id == 213) {
+                    $visit_note_params['font_style'] = 'Arial';
+                  }
+                  if ($firm_id == 261) {
+                    $visit_note_params['font_style'] = 'Georgia';
+                  }
+                  if ($qc_template == 1) {
+                    foreach ($pointer_data['visit note'] as $key => $data) {
+                      $visit_params = [];
+                      $visit_params['line_spacing'] = 1;
+                      $visit_params['qc_template'] = $qc_template;
+                      $visit_params['pointer_id'] = $data['pointer_id'] . '_' . $data['qc_reviewed'];
+                      $xml_text .= create_word_para_xml($data['note'], '', $visit_params);
+                      $xml_text .= create_word_para_xml("MYTEMP_SPACE", '');
+                      $xml_text .= create_word_para_xml("\n", '');
+                    }
+                  } else {
+                    foreach ($pointer_data['visit note'] as $key => $visit_note_arr) {
+                      $visit_params = [];
+                      $visit_params['line_spacing'] = 1;
+                      if ($firm_id == 209 || $firm_id == 21) {
+                        $visit_params['ind_firstLine'] = 709;
+                      }
+                      $xml_text .= create_word_para_xml($visit_note_arr['note'], '', $visit_params);
+                      if (!empty($visit_note_arr['mrs_injury_image'])) {
+                        $img_arr = ['image' => $visit_note_arr['mrs_injury_image'], 'title' => $visit_note_arr['injury_desc']['title']];
+                        $img_xml = get_image_xml($img_arr);
+                        $xml_text .= $img_xml;
+                      }
+                    }
+                    $xml_text .= create_word_para_xml("MYTEMP_SPACE", '');
+                  }
+                }
+
+                // foreach ($pointer_data['visit note'] as $phyc_data) { //old way of merging image
+                //   if (!empty($phyc_data['mrs_injury_image'])) {
+                //     $image_path = $phyc_data['mrs_injury_image'];
+                //   }
+                // }
+
+
+              } // end of visit note
+
+              if (!empty($pointer_data['medical cost projection'])) {
+                $bool_mcp = true;
+                $rows = [];
+                $props = [];
+                $header = ['RECOMMENDATION', 'DURATION (BEGIN/END)', 'FREQUENCY/ REPLACEMENT', 'COST', 'FREQ', 'TOTAL'];
+                $header_cnt = count($header);
+
+                foreach ($header as $index => $column) {
+                  $props['header'][$index] = [
+                    'rowspan' => 1,
+                    'center' => false,
+                    'bold' => true,
+                    'color' => '0070C0',
+                  ];
+
+                }
+                foreach ($pointer_data['medical cost projection'] as $mcpData) {
+                  $typeOfMedical = $mcpData['type_of_medical_cost'];
+                  $totalCost = $mcpData['mcp_cost'] * $mcpData['mcp_freq'];
+                  if (!in_array($typeOfMedical, $secondory_arr)) {
+                    $secondory_arr[$med_proj_cntr] = $typeOfMedical;
+                    $props['rows'][$med_proj_cntr] = [
+                      '0' => ['rowspan' => 0, 'center' => false, 'bold' => true, 'color' => '00B0F0'],
+                      '1' => ['rowspan' => $header_cnt-1, 'center' => false, 'bold' => true, 'color' => '00B0F0'],
+                     
+                    ];
+
+                    $rowData = [
+                      $typeOfMedical,
+                      '',
+                    ];
+                    $rows[$med_proj_cntr++] = $rowData;
+                  }
+                  $rowData = [
+                    $mcpData['mcp_recommendation'],
+                    $mcpData['mcp_duration'],
+                    $mcpData['mcp_freq_rep'],
+                    number_format($mcpData['mcp_cost'], 2),
+                    //$mcpData['mcp_cost'],
+                    $mcpData['mcp_freq'],
+                    //$mcpData['mcp_cost'] * $mcpData['mcp_freq']
+                    '$'.number_format($mcpData['mcp_cost'] * $mcpData['mcp_freq'], 2)
+                  ];
+                  $rows[$med_proj_cntr++] = $rowData;
+
+                  $total_mcp += $totalCost;
+                }
+                $props['rows'][$med_proj_cntr] = [
+                  '0' => ['center' => false, 'bold' => true,],
+                  '1' => ['rowspan' => $header_cnt - 2, 'center' => false, 'bold' => true],
+                ];
+                //$rowData = ['TOTAL', '','$'.number_format($total_mcp,2)];
+                $formattedTotalMcp = '$' . number_format($total_mcp, 2);
+                $rowData = ['TOTAL', '', $formattedTotalMcp];
+
+           //     $rowData = ['TOTAL', '', $formattedTotalMcp, 'bold']; // Add 'bold' to indicate this cell should be bold
+  
+               
+                $rows[$med_proj_cntr++] = $rowData; 
+
+                //$props['rows'][$med_proj_cntr - 1][3]['bold'] = true;
+                
+                //watchdog("props-ani", "<pre>" . print_r($props, true) . "</pre>");
+                //watchdog("props-ani", "<pre>" . print_r($props, true) . "</pre>");
+                $xml_table .= generate_table_word_xml($header, $rows, $props);
+                //watchdog("data-ani", "<pre>" . print_r($rows, true) . "</pre>");
+                // $rows = [
+                //   ["data",""],
+                //   ["Row2", "Data3", "Data4"],
+                //   ["Row2", "Data3", "Data4"],
+                //   ["data2",""],
+                //   ["Row2", "Data3", "Data4"],
+                //   ["Row2", "Data3", "Data4"],
+                // ];
+
+                // $props = [
+                //   'font_style' => 'Arial', // Example font style
+                //   'header' => [
+                //     ['rowspan' => 1, 'center' => false, 'bold' => true],
+                //     ['rowspan' => 1, 'center' => false, 'bold' => true,],
+                //     ['rowspan' => 1, 'center' => false, 'bold' => true,],
+                //   ],
+                //   'rows' => [
+                //     [
+                //       ['rowspan' => 1, 'center' => false, 'bold' => true,'color' => 'blue'],
+                //       ['rowspan' => 2, 'center' => false, 'bold' => true,'color' => 'blue'],
+                //     ],
+                //     [
+                //       ['rowspan' => 1, 'center' => false, 'bold' => true,],
+                //       ['rowspan' => 1, 'center' => false, 'bold' => true,],
+                //     ],
+                //     [],
+                //     [
+                //       ['rowspan' => 1, 'center' => false, 'bold' => true,'color' => 'blue'],
+                //       ['rowspan' => 2, 'center' => false, 'bold' => true,]
+                //     ],
+                //   ],
+                // ];
+
+              }
+
+              if (!empty($pointer_data['psychological evaluation'])) {
+                $psycho_rows = [];
+                $psycho_note = "";
+                $psycho_props = [];
+                $psycho_header = ['IDENTIFIED SYMPTOMS'];
+                $header_cnt = count($header);
+                $psycho_props['header'][0] = [
+                  'rowspan' => 2,
+                  'center' => false,
+                  'bold' => true,
+                ];
+
+                foreach ($pointer_data['psychological evaluation'] as $psycho_key => $psycho_data) {
+                  $psycho_arr['note'] = $psycho_data['note'];
+                  foreach ($psycho_data['extra_data'] as $ext_key => $psycho_extra) {
+                    if (empty($psycho_extra['pg_field_8'])) {
+                      $psycho_arr[$psycho_extra['pg_field_6']][""][] = $psycho_extra['pg_field_7'];
+                    } else {
+                      $psycho_arr[$psycho_extra['pg_field_6']][$psycho_extra['pg_field_8']][] = $psycho_extra['pg_field_7'];
+                    }
+                  }
+                }
+                foreach ($psycho_arr as $key => $psycho_data) {
+                  $psycho_row_data = [];
+                  $psycho_cntr = 0;
+                  $psycho_row_data[$psycho_cntr++] = $key;
+
+                  if ($key == 'note') {
+                    if (!empty($psycho_data)) {
+                      $psycho_note = $psycho_data;
+                      $xml_psycho_note = create_word_para_xml($psycho_note, "", []);
+                    }
+                    continue;
+                  }
+                  if (is_array($psycho_data)) {
+                    $psycho_text = "";
+                    uksort($psycho_data, function ($a, $b) {
+                      return ($a ?? '') <=> ($b ?? '');
+                    });
+                    foreach ($psycho_data as $psycho_key => $subValue) {
+                      $psycho_bullet_arr = [];
+                      if (!empty($psycho_key)) {
+                        $psycho_text .= create_word_para_xml($psycho_key, "", []);
+                      }
+                      if (is_array($subValue)) {
+                        foreach ($subValue as $subSubValue) {
+                          $psycho_bullet_arr[] = $subSubValue;
+                        }
+                      } else {
+                        $psycho_bullet_arr[] = $subValue;
+                      }
+                      $psycho_text = str_replace("&", "and", $psycho_text);
+                      $psycho_text .= dltr_create_bullet_point_word($psycho_bullet_arr, "", ['bullet_style' => 6, 'regular' => 1]);
+                    }
+                    $psycho_row_data['bullet_' . $psycho_cntr] = $psycho_text;
+                  }
+                  //watchdog("psycho_row_data", "<pre>" . print_r($psycho_row_data, true) . "</pre>");
+                  $psycho_rows[] = $psycho_row_data;
+                }
+                //watchdog("psycho_rows", "<pre>" . print_r($psycho_rows, true) . "</pre>");
+                $xml_psycho_table .= generate_table_word_xml($psycho_header, $psycho_rows, $psycho_props);
+              }
+
+
+
+
+
+              if (!empty($pointer_data['dl - future medical expenses'])) {  // for future medical expense
+                foreach ($pointer_data['dl - future medical expenses'] as $phyc_data) {
+                  if (!empty($phyc_data['extra_data'])) {
+                    foreach ($phyc_data['extra_data'] as $key => $val) {
+                      $total_future += get_max_number_from_str($val['pg_field_2']);
+                      $sum_amt_futr += $val['pg_field_2'];
+                      $note_data[] = $phyc_data['note'];
+                      $expense_note[$date_of_treatment][] = ['LEFT' => ucwords($val['pg_field_1']), 'RIGHT' => "$" . number_format(get_max_number_from_str($val['pg_field_2']), 2)]; // for number 100 to 500 , or 100, 500 get max value 
+                      if ($api_data['date-wise'] == 1) {
+                        $date_of_proc = explode("||", $date_of_treatment);
+                        $facility_name_futr = trim($date_of_proc[1]);
+                      } else {
+                        $facility_name_futr = $date_of_treatment;
+                      }
+                      $future_medical_exp_table[] = array(
+                        'FACILITY' => $facility_name_futr,
+                        'DOCTOR' => $val['pg_field_1'],
+                        'NOTE' => $phyc_data['note'],
+                        'AMOUNT' => $val['pg_field_2'],
+                      );
+                    }
+                    $cal_sum_futr_arr[] = [
+                      'FUTR_EXP_TOTAL' => $sum_amt_futr,
+                    ];
+                  }
+                }
+                //watchdog("sum_amt_futr=", $sum_amt_futr);
+              }
+              // end of future medical expense
+
+              if (!empty($pointer_data['physical examination'])) { // for physical examination
+                $align['left'] = 371;
+
+                foreach ($pointer_data['physical examination'] as $phyc_data) {
+                  if (!empty($phyc_data['extra_data'])) {
+                    if ($phyc_data['note'] != 'NA' && !empty($phyc_data['note']) && $phyc_data['note'] !== "") {
+                      //$xml_text .= create_word_para_xml("\n\rMYTEMP_SPACE", $phy_para_xml);
+                      $phy_note_params['line_spacing'] = 1;
+                      $phy_note_params['qc_template'] = $qc_template;
+                      $phy_note_params['pointer_id'] = $phyc_data['pointer_id'];
+                      if ($firm_id == 213) {
+                        $phy_note_params['font_style'] = 'Arial';
+                      }
+                      if ($firm_id == 261) {
+                        $phy_note_params['font_style'] = 'Georgia';
+                      }
+                      if ($firm_id == 209) {
+                        $phy_note_params['ind_firstLine'] = 709;
+                      }
+                      $gender_return = array_merge($gender_return, check_gender_grammar($ci_gender_plantiff, $phyc_data['note']));
+                      $xml_text .= create_word_para_xml($phyc_data['note'] . "", $phy_para_xml, $phy_note_params);
+                    }
+
+                    $field_count = count(array_keys($phyc_data['extra_data'][0]));
+                    if (in_array($phyc_data['orign_pt_name'], ['dl - mri', 'dl - x-ray', 'dl - ct scan'])) {
+                      $mri_data = [];
+                      // reason for taking condition is bullet not working properly..
+                      if ($firm_id == 52) {  // for firm great house 
+                        $align['bullet_style'] = 4;
+                      } else if ($firm_id == 216) {   // for firm lawman
+
+                        $align['bullet_style'] = !empty($params['bullet_style']) ? $params['bullet_style'] : 6;  //6;
+                      } else {
+                        $align['bullet_style'] = !empty($params['bullet_style']) ? $params['bullet_style'] : "";
+                      }
+
+                      foreach ($phyc_data['extra_data'] as $e_data) {
+                        $impression = trim($e_data['pg_field_8']);
+                        $pg_field_7 = trim($e_data['pg_field_7']);
+                        $mri_data[$impression][] = $pg_field_7;
+                      }
+                      if (!empty($mri_data)) {
+                        if ($firm_id == 213) {
+                          $align['bullet_style'] = 2;
+                          $align['font_style'] = 'Arial';
+                        }
+                        $align['jc'] = 'both';
+
+
+                        if (in_array($firm_id, [72, 77])) {
+                          $align['bullet_style'] = 3;
+                        }
+                        if ($firm_id == 261) {
+                          $align['font_style'] = 'Georgia';
+                        }
+
+                        /* if(!empty($phyc_data['note']) && $phyc_data['note']!== ""){
+                          $xml_text .= create_word_para_xml("\n\rMYTEMP_SPACE", $phy_para_xml);
+                        } */
+                        $xml_text .= create_word_para_xml("MYTEMP_SPACE\n\r", $phy_para_xml);
+                        foreach ($mri_data as $impression => $bullet_rows) {
+                          $imp_text = "{$impression}";
+                          $xml_text .= create_word_para_xml("MYTEMP_SPACE\n\r", $phy_para_xml);
+                          // $xml_text .= create_word_para_xml_multiple_plantiff( $imp_text, $phy_para_xml);
+                          if ($firm_id == 209) {
+                            $mriPosition = strpos($imp_text, "MRI");
+                            $xrayPosition = strpos($imp_text, "X-ray");
+                            if ($mriPosition !== false || $xrayPosition !== false) {
+                              // Extract the substring before "MRI"
+                              if (!empty($mriPosition)) {
+                                $imp_text = trim(substr($imp_text, 0, $mriPosition));
+                              } else {
+                                $imp_text = trim(substr($imp_text, 0, $xrayPosition));
+                              }
+                            } else {
+                              // "MRI" not found, use the whole string
+                              $imp_text = trim($imp_text);
+                            }
+                          }
+
+                          $imp_text_params['underline'] = 1;
+                          $imp_text_params['jc'] = 'both';
+                          $imp_text_params['line_spacing'] = 1;
+                          $imp_text_params['qc_template'] = $qc_template;
+                          $imp_text_params['pointer_id'] = $phyc_data['pointer_id'];
+                          if ($firm_id == 213) {
+                            $imp_text_params['font_style'] = 'Arial';
+                          }
+                          if ($firm_id == 261) {
+                            $imp_text_params['font_style'] = 'Georgia';
+                            $align['font_style'] = 'Georgia';
+                          }
+
+                          if ($firm_id == 209) {
+                            $imp_text_params['center'] = 1;
+                            $align['ind_left'] = 1350;
+                          }
+                          // if ($firm_id == 209) {
+                          //   $align['hanging'] = 907;
+                          //   $align['left'] = 907;
+                          // }
+                          $xml_text .= create_word_para_xml($imp_text, $phy_para_xml, $imp_text_params);
+                          $xml_text .= dltr_create_bullet_point_word_multiple_plantiff($bullet_rows, '', $align);
+                          if (!empty($phyc_data['mrs_injury_image'])) {
+                            $img_arr = ['image' => $phyc_data['mrs_injury_image'], 'title' => $phyc_data['injury_desc']['title']];
+                            $img_xml = get_image_xml($img_arr);
+                            $xml_text .= $img_xml;
+                          }
+                          // $xml_text .= dltr_create_bullet_point_word($bullet_rows, '', $align);
+                          // $xml_text .= create_word_para_xml("MYTEMP_SPACE", $phy_para_xml);
+                        }
+                        $xml_text .= create_word_para_xml("MYTEMP_SPACE", $phy_para_xml);
+                      }
+                    } else if ($field_count <= 2) {
+                      if ($firm_id == 261) {
+                        $align['font_style'] = 'Georgia';
+                      }
+                      $bullet_rows = array_column($phyc_data['extra_data'], 'pg_field_7');
+                      if (!empty($phyc_data['note']) && $phyc_data['note'] !== "") {
+                        $xml_text .= create_word_para_xml("\n\rMYTEMP_SPACE", $phy_para_xml);
+                      }
+
+                      $xml_text .= dltr_create_bullet_point_word_multiple_plantiff($bullet_rows, '', $align);
+                      $xml_text .= create_word_para_xml("MYTEMP_SPACE", $phy_para_xml);
+                      if (!empty($phyc_data['mrs_injury_image'])) {
+                        $img_arr = ['image' => $phyc_data['mrs_injury_image'], 'title' => $phyc_data['injury_desc']['title']];
+                        $img_xml = get_image_xml($img_arr);
+                        $xml_text .= $img_xml;
+                      }
+                    } else {
+                      if (!empty($phyc_data['note']) && $phyc_data['note'] !== "") {
+                        $gender_return = array_merge($gender_return, check_gender_grammar($ci_gender_plantiff, $phyc_data['note']));
+                        $xml_text .= create_word_para_xml_multiple_plantiff("\n\rMYTEMP_SPACE", $phy_para_xml);
+                      }
+                      $rom_style_params['qc_template'] = $qc_template;
+                      $rom_style_params['pointer_id'] = $phyc_data['pointer_id'];
+
+                      if ($firm_id == 213) {
+                        $rom_style_params['font_style'] = 'Arial';
+                      }
+                      if ($firm_id == 261) {
+                        $rom_style_params['font_style'] = 'Georgia';
+                      }
+
+                      $xml_text .= pfs_get_rom_xml($phyc_data['extra_data'], $phy_para_xml, $firm_id, "", $rom_style_params);
+
+                      if (!empty($phyc_data['mrs_injury_image'])) {
+                        $img_arr = ['image' => $phyc_data['mrs_injury_image'], 'title' => $phyc_data['injury_desc']['title']];
+                        $img_xml = get_image_xml($img_arr);
+                        $xml_text .= $img_xml;
+                      }
+                    }
+                  } else {
+                    $phy_note_style = [];
+                    $phy_note_style['line_spacing'] = 1;
+                    if ($firm_id == 209) {
+                      $phy_note_style['ind_firstLine'] = 709;
+                    }
+                    if ($phyc_data['note'] != 'NA') {
+                      $xml_text .= create_word_para_xml($phyc_data['note'], $phy_para_xml, $phy_note_style);
+                    }
+                    if (!empty($phyc_data['mrs_injury_image'])) {
+                      $img_arr = ['image' => $phyc_data['mrs_injury_image'], 'title' => $phyc_data['injury_desc']['title']];
+                      $img_xml = get_image_xml($img_arr);
+                      $xml_text .= $img_xml;
+                    }
+                  }
+                  // $xml_text .= create_word_para_xml("MYTEMP_SPACE", $phy_para_xml);
+                  if (!empty($phyc_data['extra_note'])) {
+                    // $xml_text .= create_word_para_xml("\n\rMYTEMP_SPACE", $phy_para_xml);
+                    $xml_text .= create_word_para_xml($phyc_data['extra_note'], $phy_para_xml, ['line_spacing' => 1]);
+                    $xml_text .= create_word_para_xml("MYTEMP_SPACE", $phy_para_xml);
+                  }
+
+
+                  // if (!empty($phyc_data['mrs_injury_image'])) { old way of merging image
+                  //   $image_path = $phyc_data['mrs_injury_image'];
+                  // }
+                }
+              }
+              // end of physical examination
+
+              // watchdog("pointer_data['diagnosis']", "<pre>".print_r($pointer_data['diagnosis'], TRUE)."</pre>");
+              $diagnosis_text = $diag_title = '';  // FOR DIAGNOSIS
+              $daig_data  = array();
+              if (!empty($pointer_data['diagnosis'])) {
+                $plantiff_arr = explode(" ", $plantiff_name);
+                $combine_plaintiff = $plantiff_arr[0] . ' ' . $plantiff_arr[2];
+                $edit_merge_code = "";
+                $pointer_id_diagnosed = array_filter(array_column($pointer_data['diagnosis'], 'pointer_id'));
+                $pointer_id_diagnosed_str = implode(',', $pointer_id_diagnosed);
+                // $combine_plaintiff = str_replace(['*b*', '*i*', '*u*'], ['', '', ''], $combine_plaintiff1);
+                // $pointer_id_daig = array_filter(array_column($pointer_data['diagnosis'], 'pointer_id'));
+                // $pointer_id_daig_str = implode(',', $pointer_id_daig);
+
+              
+                list($sal, $first_name, $last_name, $age) = explode("||||", $min_maj_sal_array[$plantiff_name], 4);
+                // if($qc_template == 1 && !empty($pointer_id_daig_str)) {
+                //   $edit_merge_code = "[EDIT_LINK_" . $pointer_id_daig_str . "] ";
+                // }
+
+                $combine_plaintiff = $first_name . ' ' . $last_name;
+                if ($age < 18) {
+                  $combine_plaintiff = $first_name != "PL" ? $first_name : "";
+                } else {
+                  $combine_plaintiff = ($sal != "PL" ? $sal : "") . " " . ($last_name != "PL" ? $last_name : "");
+                }
+                if ($qc_template == 1 && !empty($pointer_id_diagnosed_str)) {
+                  $edit_merge_code = "[EDIT_LINK_" . $pointer_id_diagnosed_str . "] ";
+                }
+                $diag_title = $edit_merge_code . $combine_plaintiff . " was diagnosed with the following:";
+                $note_data = array_filter(array_column($pointer_data['diagnosis'], 'note'));
+                if (!empty($note_data)) {
+                  $diagnosis_text = implode("\n\r", $note_data);
+                  if ($firm_id == 213) {
+                    $diag_params['font_style'] = 'Arial';
+                  }
+                  if ($firm_id == 261) {
+                    $diag_params['font_style'] = 'Georgia';
+                  }
+                  $xml_diagnosis_text .= create_word_para_xml($diagnosis_text, '', $diag_params);
+                }
+               
+                foreach ($pointer_data['diagnosis'] as $row_data) {
+                  if (!empty($row_data['extra_data'])) {
+                    $key = 0;
+                    foreach ($row_data['extra_data'] as $row) {
+                      $daig_text = $row['pg_field_7'];
+
+                      if (!empty($row['pg_field_7'])) {
+
+                        $pg_field_7_pointer_id[$row['pg_field_7']] = $row_data['pointer_id'];
+                      }
+                      if (!empty($row['pg_field_8'])) {
+                        $daig_text .= ' (' . $row['pg_field_8'] . ')';
+                      }
+
+                      $daig_data[] = $daig_text;
+                      $daig_injury[] = array(
+                        'TITLE' => $row['pg_field_7'],
+                        'CODE' => $row['pg_field_8'],
+                      );
+                      if (!in_array($daig_text, $existing_diag_data)) {
+                        $existing_diag_data[] = $daig_text;
+                        $dignosis_data[] = array(
+                          'TITLE' => $row['pg_field_7'],
+                          'CODE' => $row['pg_field_8'],
+                        );
+                        if ($key % 2 == 0) {
+                          $dignosis_data1[] = array(
+                            'TITLE' => $row['pg_field_7'],
+                            'CODE' => $row['pg_field_8'],
+                          );
+                        } else {
+                          $dignosis_data2[] = array(
+                            'TITLE' => $row['pg_field_7'],
+                            'CODE' => $row['pg_field_8'],
+                          );
+                        }
+                        $key++;
+                      }
+                    }
+                  }
+                  // $mrs_image_link = "";
+                  // if (!empty($row_data['mrs_injury_image'])) {
+                  //   $mrs_image_link .= $row_data['mrs_injury_image'] . '##||';
+                  // }
+                  // if (!empty($row_data['injury_desc']['title'])) {
+                  //   $mrs_image_link .= $row_data['injury_desc']['title'];
+                  // } 
+
+                  // if (!empty($mrs_image_link)) {
+                  //   $daig_data[] = $mrs_image_link;
+                  // }
+                  // if (!empty($row_data['mrs_injury_image'])) {
+                  //   $img_arr = ['image' => $row_data['mrs_injury_image'], 'title' => $row_data['injury_desc']['title']];
+                  //   $img_xml = get_image_xml($img_arr);
+                  //   watchdog("diagnosis_image","<pre>".print_r($img_arr,true)."</pre>");
+                  //   $xml_diagnosis_text .= $img_xml;
+                  // }
+                  // if (!empty($row_data['mrs_injury_image'])) {//old way to merge image
+                  //   $image_path = $row_data['mrs_injury_image'];
+                  // }
+                }
+                $enote_data = array_filter(array_column($pointer_data['diagnosis'], 'extra_note'));
+                $pointer_id = array_filter(array_column($pointer_data['diagnosis'], 'pointer_id'));
+                $pointer_id_str = implode(',', $pointer_id);
+                
+                if (!empty($enote_data)) {
+                  $diagnosis_rcmd =  implode("\n\r", $enote_data); //. "\n\rMYTEMP_SPACE";
+                  $enote_params['pointer_id'] = $pointer_id_str;
+                  $enote_params['qc_template'] = $qc_template;
+                  if ($firm_id == 213) {
+                    $enote_params['font_style'] = 'Arial';
+                  }
+                  if ($firm_id == 261) {
+                    $enote_params['font_style'] = 'Georgia';
+                  }
+                  if ($firm_id == 209) {
+                    $enote_params['ind_firstLine'] = 709;
+                    $xml_btm_text .= create_word_para_xml($diagnosis_rcmd, $phy_para_xml, $enote_params);
+                    $xml_btm_text .= create_word_para_xml("MYTEMP_SPACE", $phy_para_xml);
+                  } else {
+                    $xml_btm_text .= create_word_para_xml("MYTEMP_SPACE", $phy_para_xml);
+                    $xml_btm_text .= create_word_para_xml("MYTEMP_SPACE\n\r" . $diagnosis_rcmd, $phy_para_xml, $enote_params);
+                  }
+                }
+              }
+
+              // END OF DIAGNOSIS
+
+              // $all_injuries = $result_data['all_injuries'];
+              // if (!empty($all_injuries)) {  // for all innjuries
+              //   $dignoiss_data = [];
+              //   foreach ($all_injuries as $injury_patient => $injury_row) {
+              //     if($plantiff_name === $injury_patient) {
+              //       foreach($injury_row as $injury_data) { 
+              //         // if($user->uid == 534) {
+              //         //   $injury_data['pg_field_7'] = create_word_para_xml($injury_data['pg_field_7'], '');
+              //         // }
+              //         // watchdog_uid_update("injury_data = ",$injury_data,534);
+              //         $dignoiss_data[] = array(
+              //           'TITLE' => $injury_data['pg_field_7'],
+              //           'CODE' => empty($injury_data['pg_field_8']) ? NULL : $injury_data['pg_field_8'],
+              //         );
+              //       }
+              //     }
+              //   }
+              // }
+
+              $procedure_data_arr = $pointer_data['procedures'];
+              
+              if (!empty($procedure_data_arr)) {  // for all innjuries
+
+                foreach ($procedure_data_arr as $key => $note_data) {
+                  $procd_note_data_arr[] = array(
+                    'NOTE' => $note_data['note'],
+                  );
+                  if ($api_data['date-wise'] == 1) {
+                    $date_of_proc = explode("||", $date_of_treatment);
+                    $facility_name = trim($date_of_proc[1]);
+                  } else {
+                    $facility_name = $date_of_treatment;
+                  }
+                  $proc_data_sur[] = array(
+                    'NOTE' => $procedure_edit_link . $note_data['note'],
+                    'DATE' => $date,
+                    'FACILITY' => $facility_name,
+                  );
+                }
+              }
+              // $procedure_data_incre[$num_med][] = $procd_note_data_arr;
+
+              
+              $dl_recommendation = "";  // for recommendation
+              if (!empty($pointer_data['dl-recommendation'])) {
+                foreach ($pointer_data['dl-recommendation'] as $phycs_data) {
+                  if (!empty($phycs_data['note'])) {
+                    $dl_recommendation = $phycs_data['note'];
+                    if (!empty($dl_recommendation)) {
+                      $recommendation_note = ($consider_date ? '' : "MYTEMP_SPACE\n\r") . implode("\n\r", $dl_recommendation);
+                      $rec_params['line_spacing'] = 1;
+                      if ($firm_id == 213) {
+                        $rec_params['font_style'] = 'Arial';
+                      }
+
+                      if ($firm_id == 261) {
+                        $rec_params['font_style'] = 'Georgia';
+                      }
+                      $xml_text .= create_word_para_xml($recommendation_note . "\n\rMYTEMP_SPACE", '', $rec_params);
+                    }
+                  }
+                }
+              }  // end of recommendation
+              
+              $inner_data[$incr] = array_filter($daig_data);
+              
+              // if (!empty($pointer_data['carlie - procedures'])) {  // procedures
+              //   $procedure_note_data = array_filter(array_column($pointer_data['carlie - procedures'], 'note'));
+              //   if (!empty($procedure_note_data)) {
+              //     $procedure_note = ($consider_date ? '' : "MYTEMP_SPACE\n\r") . implode("\n\r", $procedure_note_data);
+              //     $xml_text.= create_word_para_xml($procedure_note . "\n\rMYTEMP_SPACE", '');
+              //   }
+              // } // end of procedures
+              // if (!empty($pointer_data['carlie - clinical observations'])) {  // clinical observations
+              //   $clinical_note_data = array_filter(array_column($pointer_data['carlie - clinical observations'], 'note'));
+              //   if (!empty($clinical_note_data)) {
+              //     $clinical_note = ($consider_date ? '' : "MYTEMP_SPACE\n\r") . implode("\n\r", $clinical_note_data);
+              //     $xml_text.= create_word_para_xml($clinical_note . "\n\rMYTEMP_SPACE", '');
+              //   }
+              // } // end of clinical observations
+              // if (!empty($pointer_data['carlie - primary complaints'])) {  // primary complaints
+              //   $primary_note_data = array_filter(array_column($pointer_data['carlie - primary complaints'], 'note'));
+              //   if (!empty($primary_note_data)) {
+              //     $primary_note = ($consider_date ? '' : "MYTEMP_SPACE\n\r") . implode("\n\r", $primary_note_data);
+              //     $xml_text.= create_word_para_xml($primary_note . "\n\rMYTEMP_SPACE", '');
+              //   }
+              // } // end of primary complaints
+
+              // if (!empty($pointer_data['carlie - prescriptions & recommendations'])) {  // prescriptions & recommendations
+              //   $prescriptions_note_data = array_filter(array_column($pointer_data['carlie - prescriptions & recommendations'], 'note'));
+              //   if (!empty($prescriptions_note_data)) {
+              //     $prescriptions_note = ($consider_date ? '' : "MYTEMP_SPACE\n\r") . implode("\n\r", $prescriptions_note_data);
+              //     $xml_text.= create_word_para_xml($prescriptions_note . "\n\rMYTEMP_SPACE", '');
+              //   }
+              // } // end of prescriptions & recommendations
+
+              // if (!empty($pointer_data['carlie - summary'])) {  // summary
+              //   $summary_note_data = array_filter(array_column($pointer_data['carlie - summary'], 'note'));
+              //   if (!empty($summary_note_data)) {
+              //     $summary_note = ($consider_date ? '' : "MYTEMP_SPACE\n\r") . implode("\n\r", $summary_note_data);
+              //     $xml_text.= create_word_para_xml($summary_note . "\n\rMYTEMP_SPACE", '');
+              //   }
+              // } // end of summary
+
+              $injury_desc_title = NULL;
+              $injury_desc_note = NULL;
+              $injury_desc_note_xml = "";
+              foreach ($pointer_data as $type => $temp_records) {  // for ainjury title and note 
+                foreach ($temp_records as $temp_record) {
+                  $orign_pt_name = ["visit note", "dl - mri", "dl - ct scan", "dl - x-ray", "dl - range of motion"]; //to image pointer
+                  if (!empty($temp_record['mrs_injury_image']) && !in_array($temp_record['orign_pt_name'], $orign_pt_name)) {
+                    $img_arr = ['image' => $temp_record['mrs_injury_image'], 'title' => $temp_record['injury_desc']['title']];
+                    $img_xml = get_image_xml($img_arr);
+                    // $injury_desc_note .= $img_xml;
+                    $injury_desc_note_xml .= $img_xml;
+                  }
+
+                  $edit_merge_code = "";
+                  $inj_desc_note = "";
+                  if ($qc_template == 1 && !empty($temp_record['pointer_id'])) {
+                    $edit_merge_code = "[EDIT_LINK_" . $temp_record['pointer_id'] . "] ";
+                  }
+                  if (!empty($temp_record['injury_desc'])) {
+                    $injury_desc_title = trim($temp_record['injury_desc']['title']);
+                    if (!empty($temp_record['injury_desc']['note'])) {
+                      $inj_desc_note_params = [];
+                      $inj_desc_note_params['italic'] = 1;
+                      $inj_desc_note_params['qc_template'] = $qc_template;
+                      $inj_desc_note_params['pointer_id'] = $temp_record['pointer_id'] . "_" . $temp_record['qc_reviewed'];
+                      if ($firm_id == 21) { // tandy firm indentation
+                        $inj_desc_note_params['ind_firstLine'] = 709;
+                      }
+                      $inj_desc_note = '[' . $temp_record['injury_desc']['note'] . ']';
+                      $injury_desc_note_xml .= create_word_para_xml($inj_desc_note, '', $inj_desc_note_params);
+                    }
+                  }
+                }
+              }
+              // injury title and note end
+              $xml_replace[$xml_diag_rep_text] = $xml_diagnosis_text;
+              $xml_replace[$xml_rep_text] = $xml_text;
+              $xml_replace[$xml_table_text] = $xml_table;
+              $xml_replace[$xml_injury_desc_text] = $injury_desc_note_xml;
+              if ($xml_btm_text != "") {
+                $xml_replace[$xml_rep_btm] = $xml_btm_text;
+              } else {
+                $xml_rep_btm = NULL;
+              }
+
+              $xml_rep_btm = trim($xml_rep_btm);
+              if ($allow_date_wise == 1) {
+                $dot = str_replace([' 01', ' 02', ' 03', ' 04', ' 05', ' 06', ' 07', ' 08', ' 09'], [' 1', ' 2', ' 3', ' 4', ' 5', ' 6', ' 7', ' 8', ' 9'], $date_of_treatment);
+                $dot_arr = explode("||", $dot);
+                $dot_and_prov = $dot_arr[0];
+                $footnote_date_of_treatment = $date_of_treatment;
+                if ($firm_id == 135) {
+                  $dot_and_prov = $dot_arr[1];
+                }
+              } else {
+                $dot_and_prov = $date_of_treatment;
+                $footnote_date_of_treatment = $date . ' || ' . $date_of_treatment;
+              }
+              
+              if (!empty($image_path)) {
+                $dest = "/tmp";
+                $file_base_name = time() . $incr . '-' . $num_med . '.png';
+                $file_tmp_path = $dest . '/' . $file_base_name;
+                $image_url = $image_path;
+                $image_data = file_get_contents($image_url);
+                if (!empty($image_data)  && $image_data != 'invalid image') {
+                  file_put_contents($file_tmp_path, $image_data);
+                  $temp_file_path = $file_tmp_path;
+                }
+                unset($image_path);
+              }
+              // watchdog("dot_arr", "dot_arr= <pre>".print_r($dot_arr,TRUE)."</pre>");
+              if ($date_cntr > 0) {
+                $my_temp_space_n = "MYTEMP_SPACE\n\r";
+              }
+              
+              $itct_data[$num_med][] = array(
+                'DATE' => ($dateCNTRTEMP == 0) ? $my_temp_space_n . $dot_and_prov : "MYTEMP_DELETE",
+                'TOP_TEXT' => $xml_rep_text,
+                'TABLE' => $xml_table_text,
+                'PSYCHO_MULTI_TABLE' => empty($xml_psycho_table) ? 'MYTEMP_DELETE' : $xml_psycho_text,
+                'PSYCHO_MULTI_NOTE' => empty($xml_psycho_note) ? 'MYTEMP_DELETE' : $xml_psycho_note_text,
+                'IMAGES' =>  file_exists(trim($temp_file_path)) ? $temp_file_path : NULL,
+                'DIAGNOSIS_TEXT' => empty($diagnosis_text) ? NULL : $xml_diag_rep_text,
+                'DIAG_TITLE' => empty($diag_title) ? NULL : (!empty($diagnosis_text) ? "MYTEMP_SPACE\n\r" : "") . $diag_title,
+                'NUM' => $incr,
+                'FCTR' => $fctr++,
+                'INJURY_DESC_TITLE' => empty($injury_desc_title) ? NULL : "MYTEMP_SPACE\n\r" . $injury_desc_title,
+                'INJURY_DESC_NOTE' =>  !empty($injury_desc_note_xml) ? $xml_injury_desc_text : (!empty($injury_desc_note) ? "MYTEMP_SPACE\n\r" . $injury_desc_note : 'MYTEMP_DELETE'),
+                'BOTTOM_TEXT' => !empty($xml_btm_text) ? $xml_rep_btm : NULL,
+                'RECOMMENDATION' => $dl_recommendation,
+                'EMPTY' => NULL,
+                'EMPTY_IMAGES' =>  file_exists(trim($temp_file_path)) ? "." : NULL,
+              );
+
+              $_FOOTNOTE_DATA_NEWDL[] = array(
+                'text' => ($dateCNTRTEMP == 0) ? $result_data['facility_mapping'][$plantiff_name][htmlspecialchars($footnote_date_of_treatment)] : '',
+                'cntr' => $footnote_cntr,
+                'caption' => 'Medical Records of',
+              );
+
+              unset($temp_file_path);
+              // $fctr['CTR'] = $footnote_cntr;
+              $footnote_cntr++;
+              $date_cntr++;
+              $dateCNTRTEMP++;
+            }
+            
+
+            $inner_injury_data[$pt_cntr] = $daig_injury;
+            $future_exp = 'FUTURE_TEXT_' . (++$text_cntr);
+
+            $future_exp_xml =  pfs_get_rom_xml_future_multiple_plantiff($expense_note, $note_data);
+            $xml_replace[$future_exp] = $future_exp_xml;
+            $xml_replace[$xml_psycho_text] = $xml_psycho_table;
+            $xml_replace[$xml_psycho_note_text] = $xml_psycho_note;
+            $temp_row_feature['EXP_TABLE'] = $future_exp;
+            $temp_row_feature['DLTR_FUTMEDEXP_TOT'] = ($total_future > 0) ? number_format($total_future, 2) : '0.00';
+          }
+
+          //}
+          
+          $total_row_future[] = $temp_row_feature;  // for total array of future expense
+
+          $total_row_exhibit[] = $temp_row_exhibit;  // for total array of exhibit
+          $total_row_sur[] = $temp_row_sur;
+          $total_row_future_table[] = $temp_row_future_table;
+          $proc_data_incre[$num_med][] = $proc_data_sur;
+          $futr_data_incre[$num_med][] = $future_medical_exp_table;
+          $cal_data_futr_incre[$num_med][] = $cal_sum_futr_arr;
+          $diagnosis_data_incre[$num_med][] = $diagnosis_data;
+          $procedure_data_incre[$num_med][] = $procd_note_data_arr;
+
+          $exhibit_incre[$num_med][] = $exhbit;
+          
+          $total_row_med[] = $temp_row_med;
+          if (!empty($temp_rec_medi['PLAINTIFF_NAME'])) {
+            $total_rec_medi[] = $temp_rec_medi;
+          }
+          $all_injuries = $result_data['all_injuries'];
+          if (!empty($all_injuries)) {  // for all innjuries
+            $dignoiss_data = [];
+            
+            foreach ($all_injuries as $injury_patient => $injury_row) {
+              if ($plantiff_name === $injury_patient) {
+                foreach ($injury_row as $injury_data) {
+                  $edit_merge_code = "";
+                  $inj_params = ['bold' => 1, 'qc_template' => $qc_template, 'pointer_id' => $injury_data['pointer_id']];
+                  // if($user->uid == 534) {
+                  //   $injury_data['pg_field_7'] = create_word_para_xml($injury_data['pg_field_7'], '');
+                  // }
+                  // watchdog_uid_update("injury_data = ",$injury_data,534);
+                  $DiagTitleCustomText = '';
+                  // if(in_array($user->uid ,[534])) {
+                  /* $DiagTitleCustomText = 'DIAG_TITLE' . (++$text_cntr);
+                          $DIAG_TITLE_xml = dltr_create_single_bullet_point_word($injury_data['pg_field_7'], "", ['bold' => 1]);
+                          $xml_replace[$DiagTitleCustomText] = $DIAG_TITLE_xml; */
+                  if ($firm_id == 213) { //eduwards
+                    $inj_params['font_style'] = 'Arial';
+                  }
+                  $DiagTitleCustomText = 'DIAG_TITLE_' . (++$text_cntr);
+
+                  $DIAG_TITLE_xml =  create_word_para_xml($injury_data['pg_field_7'], '', $inj_params);
+                  $xml_replace[$DiagTitleCustomText] = $DIAG_TITLE_xml;
+                  // }
+                  // else {
+                  //   $DiagTitleCustomText = $injury_data['pg_field_7'];
+                  // }
+                  $pointer_id = isset($pg_field_7_pointer_id[$injury_data['pg_field_7']]) ? $pg_field_7_pointer_id[$injury_data['pg_field_7']] : '';
+
+                  if ($qc_template == 1 && !empty($pointer_id)) {
+                    $edit_merge_code = "[EDIT_LINK_" . $pointer_id . "] ";
+                  }
+
+                  if ($firm_id == 261) {
+                    $diag_text_spitz = "Diagnosis:";
+                    $DiagTitleCustomText = empty($injury_data['pg_field_7']) ? NULL : $injury_data['pg_field_7'];
+                  }
+
+                  $dignoiss_data[] = array(
+                    'TITLE' => empty($DiagTitleCustomText) ? NULL : $edit_merge_code . $DiagTitleCustomText,
+                    'CODE' => empty($injury_data['pg_field_8']) ? NULL : $diag_text_spitz . $injury_data['pg_field_8'],
+                  );
+                }
+              }
+            }
+          }
+          $all_injuries_incre[$num_med][] = $dignoiss_data;
+          $single_plantiff++;
+        }  // END for loop for medical billing summary
+      }
+    }
+
+    $mrs_pointer_arr = $result_data['pointer_array'];
+    $TBS->MergeBlock('SUR', $total_row_sur);
+    foreach ($proc_data_incre as $counter => $value) {
+      foreach ($value as $merge_data) {
+        if (!empty($merge_data)) {
+          $TBS->MergeBlock('PROC_' . $counter, $merge_data);
+          $TBS->Source = str_replace('[DEL_SUR_T_' . $counter . ']', "", $TBS->Source);
+          $TBS->Source = str_replace('[DEL_SUR_PL_' . $counter . ']', "", $TBS->Source);
+        } else {
+          $TBS->Source = str_replace('[DEL_SUR_T_' . $counter . ']', "[onload;magnet=tbs:table]", $TBS->Source);
+          $TBS->Source = str_replace('[DEL_SUR_PL_' . $counter . ']', "[onload;magnet=tbs:p]", $TBS->Source);
+        }
+      }
+    }
+
+    
+    
+
+    $TBS->MergeBlock('FUTR', $total_row_future_table);
+    foreach ($futr_data_incre as $counter => $value) {
+      foreach ($value as $merge_data) {
+        if (!empty($merge_data)) {
+          $TBS->MergeBlock('FUTURE_MEDICAL_EXP_' . $counter, $merge_data);
+          $TBS->Source = str_replace('[DEL_FUTR_' . $counter . ']', "", $TBS->Source);
+          $TBS->Source = str_replace('[DEL_FUTR_PL' . $counter . ']', "", $TBS->Source);
+        } else {
+          $TBS->Source = str_replace('[DEL_FUTR_' . $counter . ']', "[onload;magnet=tbs:table]", $TBS->Source);
+          $TBS->Source = str_replace('[DEL_FUTR_PL' . $counter . ']', "[onload;magnet=tbs:p]", $TBS->Source);
+          $TBS->MergeBlock('FUTURE_MEDICAL_EXP_' . $counter, []);
+        }
+      }
+    }
+    foreach ($cal_data_futr_incre as $counter => $value) {
+      foreach ($value as $merge_data) {
+        if (!empty($merge_data)) {
+          $TBS->MergeBlock('FUTR_EXP_' . $counter, $merge_data);
+        } else {
+          $TBS->MergeBlock('FUTR_EXP_' . $counter, []);
+        }
+      }
+    }
+    $TBS->MergeBlock('MEDI', $total_rec_medi);
+    // watchdog("footnote_data_newdl = ","<pre>".print_r($_FOOTNOTE_DATA_NEWDL, TRUE)."</pre>");
+    // watchdog_uid_update("temp_row_med = ",$total_row_med);
+    // watchdog_uid_update("itct_data = ",$itct_data,526);
+    // if (!empty($image_path)) {
+
+    //   $dest = "/tmp";
+    //   $file_base_name = time() . '-' . $num_med . '.png';
+    //   $file_tmp_path = $dest . '/' . $file_base_name;
+    //   $image_url = $image_path;
+    //   $image_data = file_get_contents($image_url);
+    //   if (!empty($image_data)  && $image_data != 'invalid image') {
+    //     file_put_contents($file_tmp_path, $image_data);
+    //     $images['IMG_NO_' . $num_med] = $file_tmp_path;
+    //   }
+    // }
+    // else {
+    //   $images['IMG_NO_' . $num_med] = '';
+    // }
+    //}
+    // watchdog_uid_update("images = ",$images,526);
+    
+    if (!empty($total_row_med)) {
+      $TBS->Source = str_replace('[ITCT[MED.NUM].DATE;block=tbs:p+tbs:p+tbs:p+tbs:p+tbs:p;]', '[ITCT[MED.NUM].DATE;block=tbs:p+tbs:p+tbs:p+tbs:p+tbs:p+tbs:p;magnet=tbs:p]', $TBS->Source);
+      $TBS->Source = str_replace('[ITCT[MED.NUM].DATE;block=tbs:p+tbs:p+tbs:p+tbs:p+tbs:p+tbs:p;]', '[ITCT[MED.NUM].DATE;block=tbs:p+tbs:p+tbs:p+tbs:p+tbs:p+tbs:p+tbs:p;magnet=tbs:p]', $TBS->Source);
+      $TBS->MergeBlock('MED', $total_row_med); // for medical treatment
+
+      foreach ($itct_data as $pt_cntr => $temp_data) {
+        if (!empty($temp_data)) {
+          $TBS->MergeBlock('ITCT' . $pt_cntr, $temp_data);
+        } else {
+          $TBS->MergeBlock('ITCT' . $pt_cntr, []);
+        }
+      }
+      foreach ($inner_data as $num_ctr => $temp_data) {
+        $temp_data = array_filter($temp_data);
+        
+        $merge_data = array();
+        if (!empty($temp_data)) {
+          foreach ($temp_data as $t_text) {
+            $DiagTitleText = '';
+            $t_text_arr = [];
+            // if(in_array($user->uid ,[534])) {
+            /* $DiagTitleCustomText = 'DIAG_TITLE' . (++$text_cntr);
+                    $DIAG_TITLE_xml = dltr_create_single_bullet_point_word($injury_data['pg_field_7'], "", ['bold' => 1]);
+                    $xml_replace[$DiagTitleCustomText] = $DIAG_TITLE_xml; */
+            $DiagTitleText = 'DIAGNOSIS_' . (++$text_cntr);
+            $diagnos_params['bold'] = 1;
+            $diagnos_params['add_dot'] = 1;
+            if ($firm_id == 213) {
+              $diagnos_params['font_style'] = 'Arial';
+            }
+            if ($firm_id == 261) {
+              $font_style = 'Georgia';
+              $diagnos_params['font_style'] = 'Georgia';
+            }
+            $DIAGNOSIS_xml =  create_word_para_xml($t_text, '', $diagnos_params);
+            // if (strpos($t_text, "##||") === false) {
+            //   watchdog("t_text-ak1", "<pre>" . print_r($t_text, true) . "</pre>");
+            //   $DIAGNOSIS_xml .=  create_word_para_xml($t_text, '', $diagnos_params);
+            // }
+            // if (strpos($t_text, "##||") !== false) {
+            //   $t_text_arr = explode('##||', $t_text);
+            // }
+            // watchdog("text_arr", "<pre>" . print_r($t_text_arr, true) . "</pre>");
+            // if (count($t_text_arr) > 0) {
+            //   $img_arr = ['image' => $t_text_arr[0], 'title' => $t_text_arr[1]];
+            //   $img_xml = get_image_xml($img_arr);
+            //   $DIAGNOSIS_xml .= $img_xml;
+            // }
+
+
+            $xml_replace[$DiagTitleText] = $DIAGNOSIS_xml;
+            // }
+            // else {
+            //   $DiagTitleText = $t_text . '.';
+            // }
+            $merge_data[] = array(
+              'DIAGNOSIS' => empty($DiagTitleText) ? NULL : $DiagTitleText,
+            );
+          }
+        }
+        
+        if (!empty($merge_data)) {
+          $TBS->MergeBlock('QTCT' . $num_ctr, $merge_data);
+        } else {
+          $TBS->MergeBlock('QTCT' . $num_ctr, []);
+        }
+      }
+
+      foreach ($inner_injury_data as $num_ctr => $temp_data) {
+        $temp_data = array_filter($temp_data);
+        $merge_data = array();
+        if (!empty($temp_data)) {
+          foreach ($temp_data as $t_text) {
+            $merge_data[] = array(
+              'TITLE' => $t_text['TITLE'] . '.',
+              'CODE' => $t_text['CODE'] . '.',
+            );
+          }
+        }
+        $TBS->MergeBlock('POTC' . $num_ctr, $merge_data);
+      }
+    }
+    if (empty($total_row_med)) {
+      $TBS->MergeBlock('MED', []);
+      $TBS->MergeBlock('ITCT', []);
+    }
+
+    
+    
+    foreach ($all_injuries_incre as $counter => $value) {  // all injurues
+      foreach ($value as $merge_data) {
+        $TBS->MergeBlock('DAIG_MED_' . $counter, $merge_data);
+      }
+    }
+    
+    foreach ($procedure_data_incre as $counter => $value) {  // all injurues
+      foreach ($value as $merge_data) {
+        if (!empty($merge_data)) {
+          $TBS->MergeBlock('PROCD_NOT_' . $counter, $merge_data);
+        } else {
+          $TBS->MergeBlock('PROCD_NOT_' . $counter, []);
+        }
+      }
+    }
+
+    foreach ($diagnosis_data_incre as $counter => $value) {  // for diagnosis data
+      foreach ($value as $merge_data) {
+        $TBS->MergeBlock('DAIGNOSIS_DATA_' . $counter, $merge_data);
+      }
+    }
+
+    // MEDICAL BILLING SUMMARY part end
+
+    $TBS->MergeBlock('EXH', $total_row_exhibit); // for exhibit
+    foreach ($exhibit_incre as $counter => $value) {
+      foreach ($value as $merge_data) {
+        $TBS->MergeBlock('EXHIBIT_LIST_' . $counter, $merge_data);
+      }
+    }
+
+    $TBS->MergeBlock('DLTR', $DLTR_COLLISON_REPORT);
+    $TBS->MergeBlock('FUT_MED', $total_row_future); // for future medical expense
+    $TBS->MergeBlock('DLTRO', $other_exhibit);
+
+    if (!empty($xml_replace)) {
+      foreach ($xml_replace as $key => $word_xml) {
+        if (strpos($TBS->Source, $key) !== FALSE) {
+          $index = strpos($TBS->Source, '</w:p>', strpos($TBS->Source, $key));
+          $TBS->Source = substr_replace($TBS->Source, $word_xml, $index + 6, 0);
+          $TBS->Source = str_replace($key, "", $TBS->Source);
+        }
+      }
+    }
+  }
+
+  $font_style1 = 'Times New Roman';
+  if ($firm_id == 261) {
+    $font_style1 = 'Georgia';
+  }
+  if ($firm_id == 213) {
+    $font_style1 = 'Arial';
+  }
+
+
+  foreach ($del_par_ad as $counter => $value) {
+    foreach ($value as $key => $merge_data) {
+      if (empty($merge_data)) {
+        $TBS->Source = str_replace('[DELAD_' . $counter . ']', "[onload;magnet=tbs:p]", $TBS->Source);
+        $TBS->Source = str_replace('[DELMIN_' . $counter . ']', "", $TBS->Source);
+      } else {
+        $TBS->Source = str_replace('[DELAD_' . $counter . ']', "", $TBS->Source);
+        $TBS->Source = str_replace('[DELMIN_' . $counter . ']', "[onload;magnet=tbs:p]", $TBS->Source);
+      }
+      // $TBS->Source=str_replace("[AOSADD1]","[onload;magnet=tbs:table]",$TBS->Source);
+    }
+  }
+
+
+  if (!empty($case_details['pc_future_recommendation'])) {
+    $TBS->Source = str_replace('[FUT_DEL]', "", $TBS->Source);
+} else {
+    $TBS->Source = str_replace('[FUT_DEL]', "[onload;magnet=tbs:p]", $TBS->Source);
+}
+
+
+
+  $TBS->Source = str_replace('MYTEMP_SPACE', "", $TBS->Source);
+  $TBS->Source = str_replace("  ", " ", $TBS->Source);
+  $TBS->Source = str_replace("&ndash;", "-", $TBS->Source);
+  $TBS->Source = str_replace("  sustained", " sustained", $TBS->Source);
+  $TBS->Source = str_replace('<w:r><w:rPr><w:b/></w:rPr><w:t>.</w:t></w:r>', "", $TBS->Source);
+  $TBS->Source = str_replace('</w:rPr></w:pPr></w:p><w:p w:rsidR="00210128" w:rsidRDefault="00BC02E8" w:rsidP="0096109A"><w:pPr><w:jc w:val="both"/><w:rPr>', "", $TBS->Source);
+  $TBS->Source = str_replace('</w:p><w:p w:rsidR="00210128" w:rsidRDefault="00BC02E8" w:rsidP="0096109A"><w:pPr><w:jc w:val="both"/><w:rPr><w:rFonts w:hAnsi="' . $font_style1 . '" w:ascii="' . $font_style1 . '"/><w:sz w:val="24" /><w:szCs w:val="24" /></w:rPr></w:pPr>', "", $TBS->Source);
+  $TBS->Source = str_replace('</w:p><w:p w:rsidR="00210128" w:rsidRDefault="00BC02E8" w:rsidP="0096109A"><w:pPr><w:jc w:val="both"/><w:rPr><w:rFonts w:hAnsi="' . $font_style1 . '" w:ascii="' . $font_style1 . '"/><w:sz w:val="24" /><w:szCs w:val="24" /><w:b/></w:rPr></w:pPr>', "", $TBS->Source);
+  $TBS->Source = str_replace('MYTEMP_DELETE', "[onload;magnet=tbs:p]", $TBS->Source);
+  $TBS->Source = str_replace("W:", "w:", $TBS->Source);
+  if (count($gender_return) > 0) {
+    $err_msg .= "<span style = 'color:red; line-height:20px;'><br>Cross-gender words are used. Client gender is set to " . $ci_gender . ".";
+    $err_msg .= "<br>Words found in Medical Summary are " . implode(", ", array_unique($gender_return));
+    $err_msg .= "<br>Please replace them with proper gender preference.";
+    $err_msg .= "<br></span><br>";
+  }
+
+  if (!empty($err_msg)) {
+    return $err_msg;
+  }
+}
